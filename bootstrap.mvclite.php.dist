@@ -1,0 +1,23 @@
+<?php
+
+use PhpLoaderLite\NsClassLoader;
+
+// small set of functions to bootstrap 
+define('_MVCDEBUG', true); // false when in production
+defined('DS') 
+    || define('DS', DIRECTORY_SEPARATOR);
+
+define('APPSROOT', 'apps');
+
+defined('LIBROOT') 
+    || define('LIBROOT', DOCROOT .DS. 'Lib');
+
+NsClassLoader::addPath(LIBROOT.DS.'src');
+// use this only if you keep a local copy of the src instead of using composer
+//NsClassLoader::addPath(LIBROOT .DS. 'mvclite'. DS . "src");
+NsClassLoader::addPath(APPSROOT . DS . "src" .DS. "controller");
+NsClassLoader::addPath(APPSROOT . DS . "src" .DS. "model");
+$autoloader = new NsClassLoader();
+
+
+

@@ -1,0 +1,26 @@
+{
+    "name": "chanhong/mvclite",
+    "description": "MVC Lite",
+    "keywords": ["mvc", "lite", "mvclite"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Chanh Ong",
+            "homepage": "https://github.com/chanhong"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.0",
+        "chanhong/pdolite": "1.0.x-dev",
+        "chanhong/phploaderlite": "1.0.x-dev"        
+    },
+    "autoload": {
+        "psr-4": {
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.0-dev"
+        }
+    }    
+}
