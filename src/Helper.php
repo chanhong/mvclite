@@ -174,6 +174,20 @@ class Helper {
         return $detclass;
     }
 
+    function getLiMenu($iMenu = "") {
+
+        $defaultreturn = "";
+        if (is_array($iMenu) and !empty($iMenu)) {
+            foreach ($iMenu  as $one) {
+                $defaultreturn .= $this->tag("li", $this->alink($one));
+            }  
+            $return = $defaultreturn;
+        } else {
+            $return = $iMenu;
+        }
+        return $return;
+    }    
+
 }
 
 ?>

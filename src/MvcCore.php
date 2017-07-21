@@ -21,9 +21,11 @@ class MvcCore {
     public static $_Err;
     public static $_cfg;
     public static $_userInfo;
+    public static $_action;
     
     public static $loginUrl = '?login'; // Where to direct users to login
-    
+    public $retUrl;
+
     static $LoggedIn;
     public $profile;
     public $Auth;
@@ -31,6 +33,8 @@ class MvcCore {
     public $ut;
     public $h;
     public $db;
+    public $meTable;
+
     protected $_view_data = array(
     );    
     public $model;
@@ -65,11 +69,11 @@ class MvcCore {
     public function __construct() {
         
         Helper::$_lineBreak = true;
-        self::$_userInfo = null;
         $this->ut = new Util;
         $this->h = new Helper;
         $this->db = new PdoLite;  
-        $this->Auth = MVCAuth::getAuth('insert some random text here');
+//        $this->Auth = MVCAuth::getAuth('insert some random text here');
+        $this->Auth = MVCAuth::getAuth('MvcLiteSALT');
         $this->Error = MVCError::getError();
         
         $this->get = $_GET;
@@ -79,43 +83,38 @@ class MvcCore {
         }
 //        $this->_class_path = strtolower($this->className);
         $this->_class_path = $this->className;
+        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = "?";        
     }
 
-    public static function doRouter($args = false, $routes, $iClassName=self::class) {
+    public static function redirect2Url($ret2URL = null) {
 
-        $args = Util::parseQs($routes, $iClassName);
-        $className = $args['t'];
-        $action = $args['a'];
-        if (class_exists($className)) { 
-            $ctl = new $className();
-        }
-        // if not router, make sure a valid action or view of controller
-        if ($args['t'] <> strtolower($iClassName) 
-            and class_exists($className)
-            and (method_exists($ctl, $action) or $ctl->isAppView($action, $className))
-        ) {
-            $ctl->start($args);
-        // if router has action or view show it (rare)    
-        } elseif (!empty($action) and $ctl->isAppView($action, $className)) {
-            self::doView($ctl, $action);
-        // if controller "notfound" view exist show it
-        } elseif ($ctl->isAppView("notfound", $className)) {
-            self::doView($ctl, "notfound");  
-        // in case QS=router show not found using base controller   
-        } else {
-            return $action;
-        }
-    }  
+        if (is_null($ret2URL))
+            $ret2URL = $_SERVER['PHP_SELF'];
 
-    public static function doView($ctl, $action) {
-        if (empty($ctl->_view_data['title'] )) {
-            $ctl->_view_data['title'] = $action;             
-        }
-        if (empty($ctl->_view_data['pagetitle'] )) {
-            $ctl->add2HeaderArrays("pagetitle", $action);
-        }
-        $ctl->setViewData($ctl->_class_path);
-        echo $ctl->appView($action, $ctl->layout); 
-    } 
+//        self::pln($ret2URL, 'ret2URL');
+        $_SESSION['debug'] = "r: [$ret2URL]";
+        header("Location: $ret2URL");
+    }
+
+    public function isAuthorized($validate, $where, $meTable) {
+
+        if (!empty($validate) and !empty($where) and !empty($meTable)) {
+            $this->Auth->logout();
+            $userRow = $this->db->dbRow($meTable, ['where'=>$where]);
+            if ($this->Auth->login($validate, $userRow)) {
+                $_SESSION['userinfo'] = $userRow; 
+                // mask out sensitive user info
+                unset($_SESSION['userinfo']['nid']);
+                unset($_SESSION['userinfo']['password']);
+                unset($_SESSION['userinfo']['confirm_hash']);                               
+                return $userRow;
+            }
+        } 
+    }
+       
+    public static function pln($iVar, $iStr = "", $iFormat = "br") {
+    
+        print Util::debug($iVar, $iStr, $iFormat);
+    }     
 }
 

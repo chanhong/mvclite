@@ -1,11 +1,11 @@
 <?php
 
 namespace MvcLite;
+
 class MvcAuth {
 
     const DOMAIN = "MVCLite";
     const ONEMONTH = 2592000;
-       
        
     private static $me;
     private static $salt;
@@ -52,6 +52,7 @@ class MvcAuth {
     }
 
     public function init() {
+
         $this->setInitCookie();
         $this->loggedIn = $this->attemptCookieLogin();
     }
@@ -86,22 +87,27 @@ class MvcAuth {
     public function login($validate, $user) {
         
         $status = false;
-        if (!empty($validate) and !empty($user)) {
-            // if login via form or win login
-            if (!empty($user['username']) and !empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
+        if (empty($validate) or empty($user)) return $status;
+        
+        // if login via form or win login
+        if (!empty($user['username'])) {
+//                $this->pln($user);
+            if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
+//                if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate, $user['confirm_hash'])) {
                 $status = true;
-            } elseif (!empty($user['username']) and !empty($user['winuser']) and $user['winuser'] == $validate ) {
+            } elseif (!empty($user['winuser']) and $user['winuser'] == $validate ) {
                 $status = true;
-            }
-            if ($status = true) {
-                $this->profile = $user;
-                $this->loggedIn = true;
-                $this->generateBCCookies();
             }
         }
-        return $this->loggedIn;
+        
+        if ($status = true) {
+            $this->profile = $user;
+            $this->loggedIn = $status;
+            $this->generateBCCookies();
+            return $status;
+        }
     }
-    
+
     public function logout() {
         
         $this->loggedIn = false;
@@ -154,6 +160,7 @@ class MvcAuth {
     }
 
     private function setInitCookie() {
+
         if (!isset($_COOKIE['A'])) {
             srand(time());
             $a = md5(rand() . microtime());
@@ -181,22 +188,34 @@ class MvcAuth {
     }
 
     private function clearCookies() {
+
         setcookie('B', '', time() - 3600, '/', self::DOMAIN);
         setcookie('C', '', time() - 3600, '/', self::DOMAIN);
     }
 
-
-    public function md5Hash($hash, $p1 = "", $p2 = "") {
+    public function md5HashNoSalt($hash, $p1 = "", $p2 = "") {
 
         return md5($hash . self::$salt . strtolower($p1) . strtolower($p2));
     }
 
+    public function md5Hash($hash, $salt="", $p1 = "", $p2 = "") {
+
+        if (empty($hash)) return;
+        // if no salt passed, use Auth static salt
+        if (empty($salt)) {
+            $salt = self::$salt;
+        } 
+        return md5($hash . $salt . strtolower($p1) . strtolower($p2));
+    }
+
     public static function newNid() {
+
         srand(time());
         return md5(rand() . microtime());
     }
 
     private function attemptCookieLogin() {
+
         if (!isset($_COOKIE['A']) || !isset($_COOKIE['B']) || !isset($_COOKIE['C']))
             return false;
 
@@ -247,5 +266,88 @@ class MvcAuth {
          * 
          */
     }
+// from custom, check it out
+    public function requireUser($rUrl = "") {
+        if (!$this->loggedIn())
+            $this->sendToLoginPage($rUrl);
+    }
 
+    public function requireAdmin($rUrl = "") {
+        if (!$this->loggedIn() || !$this->isAdmin())
+            $this->sendToLoginPage($rUrl);
+    }
+
+    public function isAdmin() {
+        return ($this->user->level === 'admin');
+    }
+
+    public function changeCurrentUsername($new_username) {
+//        $db = Database::getDatabase();
+       
+        srand(time());
+        $this->user->nid = Auth::newNid();
+        $this->nid = $this->user->nid;
+        $this->user->username = $new_username;
+        $this->username = $this->user->username;
+        $this->user->update();
+        $this->generateBCCookies();
+    }
+
+    public function impersonateUser($id_or_username) {
+        if (ctype_digit($id_or_username))
+            $u = new User($id_or_username);
+        else {
+            $u = new User();
+            $u->select($id_or_username, 'username');
+        }
+
+        if (!$u->ok())
+            return false;
+
+        $this->id = $u->id;
+        $this->nid = $u->nid;
+        $this->username = $u->username;
+        $this->user = $u;
+        $this->generateBCCookies();
+
+        return true;
+    }
+    public function changeCurrentPassword($new_password) {
+        
+        srand(time());
+        $this->user->nid = self::newNid();
+        $this->user->password = self::hashedPassword($new_password);
+        $this->user->update();
+        $this->nid = $this->user->nid;
+        $this->generateBCCookies();
+    }
+
+    public static function changeUsername($id_or_username, $new_username) {
+        if (ctype_digit($id_or_username))
+            $u = new User($id_or_username);
+        else {
+            $u = new User();
+            $u->select($id_or_username, 'username');
+        }
+
+        if ($u->ok()) {
+            $u->username = $new_username;
+            $u->update();
+        }
+    }
+
+    public static function changePassword($id_or_username, $new_password) {
+        if (ctype_digit($id_or_username))
+            $u = new User($id_or_username);
+        else {
+            $u = new User();
+            $u->select($id_or_username, 'username');
+        }
+
+        if ($u->ok()) {
+            $u->nid = self::newNid();
+            $u->password = self::hashedPassword($new_password);
+            $u->update();
+        }
+    }    
 }

@@ -34,6 +34,7 @@ class Util {
     }
 
     public static function dTrace() {
+
         $str = "<br />[dTrace]";
         foreach (debug_backtrace() as $row) {
             $str .= "<br />FILE: " . $row['file'] . " FUNC: " . $row['function'] . " LINE: " . $row['line'] . " ARGS: " . print_r($row['args'], true);
@@ -56,6 +57,7 @@ class Util {
     }
 
     function relRoot($adj = "") {
+
         $levels = substr_count($_SERVER['PHP_SELF'], '/');
         $root = '';
         for ($i = 1; $i < $levels - $adj; $i++) {
@@ -65,12 +67,14 @@ class Util {
     }
 
     function rootPath($path = "") {
+
         $path_parts = pathinfo($_SERVER['PHP_SELF']);
         $return = realpath(dirname(realpath($path_parts['basename'])) . "/" . $path);
         return $return;
     }
 
     function rootSite() {
+
         //    $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         //    $dirname = preg_replace('/\\\+/', '/', dirname(realpath($uri)));
         $dirname = preg_replace('/\\\+/', '/', dirname($_SERVER['PHP_SELF']));
@@ -80,6 +84,7 @@ class Util {
     }
 
     function siteURL() {
+
         $protocol = "http://";
         if (!empty($_SERVER['HTTPS']))
             (strtolower($_SERVER['HTTPS']) == "on") ? $protocol = "https://" : $protocol = "http://";
@@ -88,10 +93,12 @@ class Util {
     }
 
     function selfURL() {
+
         return $this->siteURL() . $this->rootSite();
     }
 
     function array2InsStr($iArray) {
+
         $value = '"' . implode('", "', array_values($iArray)) . '"'; // must use this in case quote in the name
         $name = implode(", ", array_keys($iArray));
         // return (jvid, title, maker, explanation, acctmo, prep_date, phone ) VALUES ("1","Title","Maker","Explanation","15","2/11/2011","87878")        
@@ -99,6 +106,7 @@ class Util {
     }
 
     function array2UptStr($iArray, $checkNumArray = array()) {
+
         $str = "";
         while (list($key, $val) = each($iArray)) {
             if (isset($checkNumArray[$key]) and $key == $checkNumArray[$key] and empty($val)) {
@@ -111,6 +119,7 @@ class Util {
     }
 
     function array2Str($iArray) {
+
         $str = "";
         while (list($key, $val) = each($iArray)) {
             if (empty($val))
@@ -121,6 +130,7 @@ class Util {
     }
 
     function splitArray($jvArchiveDir, $type) {
+
         $fileArray = $folderArray = array();
         foreach ($jvArchiveDir as $fspec) {
             $realfile = realpath($fspec);
@@ -193,6 +203,7 @@ class Util {
 
 
     function cleanArray($iVar) {
+
         foreach ($iVar as $k => $v) {
             $eachpost[$k] = $this->getSafeVar($iVar, $k);
         }
@@ -200,6 +211,7 @@ class Util {
     }
 
     function cleanAmt($amt) {
+
         $ret = sprintf("%1.2f", $this->clean($amt) / 100, "num");
         if (strlen($ret) > 11)
             $ret = 0;
@@ -207,10 +219,12 @@ class Util {
     }
 
     function getParm($iVar) {
+
         return strtolower($this->getSafeVar($_GET, $iVar));
     }
 
     function getLdapByType($iType = 'email', $iValue) {
+
         if (!class_exists('CLdap'))
             include("cldap.php");
         $ldap = new CLdap();
@@ -218,16 +232,15 @@ class Util {
         return $retArray;
     }
 
-    // co 7/19/2010 implement email attachment
     function sendAttachment($subject, $sendto, $replyto, $message, $htmlfile) {
-        if (!class_exists('CMailFile'))
-            include("cmailfile.php");
+
         $mimetype = "text/plain";
-        $mailfile = new CMailFile($subject, $sendto, $replyto, $message, $htmlfile, $mimetype);
+        $mailfile = new MailFile($subject, $sendto, $replyto, $message, $htmlfile, $mimetype);
         $mailfile->sendfile();
     }
 
     function trimSpaces($str) {
+
         while (sizeof($array = explode("  ", $str)) != 1) { // trim any where not just begin or ending
             $str = implode(" ", $array);
         }
@@ -235,11 +248,13 @@ class Util {
     }
 
     function expiredCookie() {
+
         setcookie('id_hash', '', (time() - 3600), '/', '', 0); // 1 hr ago, expired cookie
         session_unset(); // move here from logout.php
     }
 
     function user_getname() {
+
         if (!empty($_SESSION['LOGGED_IN'])) {
             return $GLOBALS['user_name'];
         } else {
@@ -249,6 +264,7 @@ class Util {
     }
 
     function fwriteStream($fp, $string) {
+
         for ($written = 0; $written < strlen($string); $written += $fwrite) {
             $fwrite = fwrite($fp, substr($string, $written));
             if ($fwrite === false) {
@@ -259,16 +275,19 @@ class Util {
     }
 
     function YN($str) {
+
         ($str == 'Y') ? $str = 'N' : $str = 'Y';
         return $str;
     }
 
     function properName($str) {
+        
         (!empty($str)) ? $ret = ucwords(trim(strtolower($str))) : $ret = "";
         return $ret;
     }
 
     function padHtml($strInput = "", $strLength = 0, $padStr = "&nbsp;", $padType = STR_PAD_RIGHT) {
+    
         $return = trim(strip_tags($strInput));
         if (strlen($return) < intval($strLength)) {
             switch ($padType) {
@@ -292,24 +311,28 @@ class Util {
     }
 
     function fDirName($fspec) {
+
         $path_parts = pathinfo($fspec);
         (!empty($path_parts['dirname'])) ? $ret = $path_parts['dirname'] : $ret = "";
         return $ret;
     }
 
-    function fName($fspec) {
+    static function fName($fspec) {
+
         $path_parts = pathinfo($fspec);
         (!empty($path_parts['filename'])) ? $ret = $path_parts['filename'] : $ret = "";
         return $ret;
     }
 
     function fExt($fspec) {
+
         $path_parts = pathinfo($fspec);
         (!empty($path_parts['extension'])) ? $ret = $path_parts['extension'] : $ret = "";
         return $ret;
     }
 
     function virtualFolder2RealFolder($folderPath) {
+
         if (!empty($folderPath)) {
             $chkFolderPathArray = explode("/", $folderPath);
             $folderPathSpec = implode("/", $chkFolderPathArray);
@@ -320,7 +343,8 @@ class Util {
         return $folderPath;
     }
 
-    function realFolder2VirtualFolder($dirname, $realFolder2Hide) { // special for jv since archive is some where else
+    function realFolder2VirtualFolder($dirname, $realFolder2Hide) { 
+
         $fpath = strtolower($dirname);
         $pos = strpos($fpath, $realFolder2Hide);
         $chkFolderPathArray = explode("/", substr($fpath, $pos + strlen($realFolder2Hide)));
@@ -329,6 +353,7 @@ class Util {
     }
 
     function winUser() {
+
         $amcid = "";
         $eadUserName = $_SERVER['LOGON_USER']; // get Windows User ID without domain name
         if (!empty($eadUserName)) {
@@ -340,6 +365,7 @@ class Util {
     }
 
     function uploadFiles($files, $targetFolder, $allowedExtensions) {
+
         $msg = "";
         $i = 0;
         $asize = count($files['name']);
@@ -354,6 +380,7 @@ class Util {
     }
 
     function uploadFile($file, $targetFolder, $allowedExtensions) {
+
         list($fileName, $fileType, $fileTemp, $fileErr, $fileSize ) = $file;
         if ($fileErr == UPLOAD_ERR_OK) {
             if ($this->isAllowedExtension($fileName, $allowedExtensions)) {
@@ -374,11 +401,13 @@ class Util {
     }
 
     function isAllowedExtension($fileName, $allowedExtensions) {
+
         $fArray = explode(".", $fileName);
         return in_array(end($fArray), $allowedExtensions);
     }
 
     function splitWords($string, $max = 1) {
+
         $words = preg_split('/\s/', $string);
         $lines = array();
         $line = '';
@@ -400,6 +429,7 @@ class Util {
     }
 
     function splitLongLine($string, $maxWords = 96) { // fit 1024 screen size
+
         $oline = "";
         $strArry = explode("\n\r", $string);
         foreach ($strArry as $line) {
@@ -410,6 +440,7 @@ class Util {
     }
 
     function delTree($dir) {
+
         if (is_dir($dir)) {
             $objects = scandir($dir);
             foreach ($objects as $object) {
@@ -426,6 +457,7 @@ class Util {
     }
 
     function getDateArrayFromFiles($listDir) {
+
         $dateA = array();
         foreach ($listDir as $fspec) {
             $path_parts = pathinfo($fspec);
@@ -440,6 +472,7 @@ class Util {
     // TODO not working yet!  not sort correctly
 //  function getFirstLastDate($dateA,$dFormat="m/d/y") {
     function getFirstLastDate($dateA, $dFormat = "Y/m/d") {
+
 //    $fDate = $lDate = date("m/d/y",time());
         $fDate = $lDate = date($dFormat, time());
         asort($dateA); // TODO
@@ -462,6 +495,7 @@ class Util {
     }
 
     function br2nl($string) {
+
         return preg_replace('/\<br(\s*)?\/?\>/i', "\n", $string);
     }
 
@@ -491,6 +525,7 @@ class Util {
     
     // Fixes MAGIC_QUOTES
     function fixSlashes($arr = '') {
+
         if (is_null($arr) || $arr == '')
             return null;
         if (!get_magic_quotes_gpc())
@@ -503,6 +538,7 @@ class Util {
     }
 
     public static function qsValue() {
+
         if (empty($_SERVER['QUERY_STRING']))
             return;
         // qs: ?t=users&a=login (key paired) or ?p=/users/login (path)
@@ -553,7 +589,9 @@ class Util {
 //        Util::debug($luArr,'alias');       
         return $luArr;
     } 
+    
     public static function methodNotParent($class_name, $method_name) {   
+
         $ret = false;
         $class = new \ReflectionClass($class_name);
         if ($class->hasMethod($method_name)) {
@@ -566,18 +604,20 @@ class Util {
     }
 
     public static function methodlist($className) {
+        
         $methods = get_class_methods($className);
         print Util::debug($methods, $className.':methods','p');        
     }   
+
     public static function parseQs($routes, $className=self::class) {
 
         $qsArr = Util::qsValue();
-        Util::debug($qsArr, __METHOD__.':qs','p');  
-        Util::debug($className,'class');      
+//        Util::debug($qsArr, __METHOD__.':qs','p');  
+//        Util::debug($className,'class');      
         $args = $qsArr;
         if (!empty($args['t']) and $luArr = Util::aliasLookup($args['t'], $routes['alias'] )) {  
             $args = $luArr;
-            Util::debug($args, ':aft-alias','p');  
+//            Util::debug($args, ':aft-alias','p');  
         }
         // if not a full QS then patch it up with either default controller or this class
         $defCntl = strtolower($routes['default_controller']);
@@ -598,7 +638,65 @@ class Util {
         }
 //        print Util::debug($args, ':args','p');         
         return $args;
-    }      
+    } 
+
+    public static function dir2Array($dir, $recursive=false) { 
+
+        $oArray = [];
+        $cdir = scandir($dir); 
+        foreach ($cdir as $key => $value) { 
+            if (!in_array($value,array(".","..")))  { 
+                if ((is_dir($dir . DIRECTORY_SEPARATOR . $value)) and $recursive==true) {
+                    $oArray[$value] = self::dir2Array($dir . DIRECTORY_SEPARATOR . $value, $recursive); 
+                } else { 
+                    $oArray[] = $value; 
+                } 
+            } 
+        } 
+        return $oArray; 
+    } 
+
+    public static function getClass($className) { 
+
+        if (class_exists($className)) { 
+            return new $className();
+        }    
+    }
+
+    public static function filesListNameOnly($dir, $ext) { 
+
+        $l = array();
+        foreach (array_diff(scandir($dir),array('.','..')) as $f)
+            if (is_file($dir.'/'.$f)
+                && (($ext)?(preg_match("/$ext$/i", $f)):1))
+
+                $l[]=self::fName($f);
+
+        return $l;
+    }
+
+    public static function filesList($dir, $ext) { 
+
+        $l = array();
+        foreach (array_diff(scandir($dir),array('.','..')) as $f)
+            if (is_file($dir.'/'.$f)
+                && (($ext)?(preg_match("/$ext$/i", $f)):1))
+
+                $l[]=$f;
+
+        return $l;
+    }
+
+    public static function dirsList($dir) { 
+
+        $l = array();
+        foreach(array_diff(scandir($dir),array('.','..')) as $f)
+            if(is_dir($dir.'/'.$f))
+                $l[]=$f;
+
+            return $l;
+    }
+
 }
 
 
