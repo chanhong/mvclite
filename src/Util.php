@@ -562,6 +562,7 @@ class Util {
             if (!empty($retUrl))
                 $arr['r'] = $retUrl;
         }
+//        self::pln($arr, "qs");
         return $arr;
     }
 
@@ -636,6 +637,7 @@ class Util {
                 $args['a'] = "index";
             }
         }
+//        print Util::debug($routes, 'routes','p');         
 //        print Util::debug($args, ':args','p');         
         return $args;
     } 

@@ -75,9 +75,9 @@ class MvcAuth {
     public function winUser() {
 
         $winId = "";
-        $eadUserName = $_SERVER['LOGON_USER']; // get Windows User ID without domain name
-        if (!empty($eadUserName)) {
-            $winUser = explode("\\", $eadUserName);
+        // get Windows User ID without domain name
+        if (!empty($_SERVER['LOGON_USER'])) {
+            $winUser = explode("\\", $_SERVER['LOGON_USER']);
             array_shift($winUser);
             list($winId) = $winUser;
         }
