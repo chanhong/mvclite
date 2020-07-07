@@ -156,7 +156,7 @@ class MvcController extends MvcCore {
         (!empty($class) and ( file_exists($cvFile))) 
         ? $vFile = $cvFile 
         : $vFile = DOCROOT . DS . $this->layoutsPath .DS .$this->_widgetFolder . DS . $fileName;
-        Util::debug($vFile, 'widget');
+//        permDbg($vFile, 'widget');
         (file_exists($vFile)) ? $return = $this->captureContent($vFile) : $return = "";
         return $return;
     }
@@ -197,8 +197,8 @@ class MvcController extends MvcCore {
     }
     function _notFound($page="Page") {
 
-//        print $this->ut->debug(__METHOD__);
         if (!is_string($page)) {
+    //        print $this->ut->debug(__METHOD__);
             $page = "Unknown: ".print_r($page,true);
         }
         return '<p /><div align="center"><h1>Internal: '.$page. ' is not found!</h1>
@@ -279,10 +279,6 @@ class MvcController extends MvcCore {
 
     public static function isRoutable($className, $routerClassName) {
 
-        
-        Util::debug($className, 'cls','p');   
-        Util::debug($routerClassName, 'rt','p'); 
-          
         if  (!empty($routerClassName) 
             and !empty($className) 
             and self::isController($className)
@@ -305,16 +301,13 @@ class MvcController extends MvcCore {
 
     public static function doRouter($routes, $iClassName=self::class) {
  
-        $args = false;
         $args = Util::parseQs($routes, $iClassName);
         $className = $args['t'];
         // safe current action/view to be render by doBodyContent()
         self::$_action = $action = $args['a'];
         $rCtl = Util::getClass($iClassName);
-        
-        
-//        if (strtolower($args['t']) <> strtolower($iClassName) and class_exists($className)) {
-//        if (self::isRoutable($className, $iClassName)) {
+//        if (strtolower($args['t']) <> strtolower($iClassName) and class_exists($className)
+        if (self::isRoutable($className, $iClassName)) {
             // if not router, make sure a valid action or view of a controller
             $ctl = Util::getClass($className);
             if (!empty($ctl)
@@ -324,14 +317,12 @@ class MvcController extends MvcCore {
                 // good controller but bad action
                 self::redirect2Url("?".MVCCore::$_cfg['page404']);
             }
-            /*
         // if router has action or view show it (rare)    
         } elseif (!empty($action) 
             and $rCtl->isAppView($action, $iClassName) 
             and ($className == strtolower($iClassName))) 
         {
             self::doView($rCtl, $action);
-            
         // if not a valid controller and router page404 exist
         } elseif ($rCtl->isAppView(MVCCore::$_cfg['page404'], $iClassName)) {
             self::redirect2Url("?".MVCCore::$_cfg['page404']);
@@ -339,7 +330,6 @@ class MvcController extends MvcCore {
             // all else fail, use internal notfound
             echo $rCtl->_notFound($action);            
         }
-        */
     }  
 
     public static function doView($ctl, $action) {
@@ -351,7 +341,6 @@ class MvcController extends MvcCore {
             $ctl->add2HeaderArrays("pagetitle", $action);
         }
         $ctl->setViewData($ctl->_class_path);
-//        Util::debug($ctl, 'ctl','p');           
         echo $ctl->appView($ctl, $action, $ctl->layout); 
     } 
 
@@ -379,7 +368,6 @@ class MvcController extends MvcCore {
         $youare = $dmsg = $alertMsg = $feedback = $buff = "";
 
         $dmsg = $this->ut->getSafeVar($_SESSION, "debug");
-//        print("msg:".$dmsg);
         (!empty($dmsg)) ? $dmsg = "<center>" . $dmsg . "</center>" : $dmsg = "";
 
         $feedback = $this->feedback("feedback", "DarkGreen");
