@@ -307,7 +307,7 @@ class MvcController extends MvcCore {
         self::$_action = $action = $args['a'];
         $rCtl = Util::getClass($iClassName);
 //        if (strtolower($args['t']) <> strtolower($iClassName) and class_exists($className)
-        if (self::isRoutable($className, $iClassName)) {
+//        if (self::isRoutable($className, $iClassName)) {
             // if not router, make sure a valid action or view of a controller
             $ctl = Util::getClass($className);
             if (!empty($ctl)
@@ -317,6 +317,7 @@ class MvcController extends MvcCore {
                 // good controller but bad action
                 self::redirect2Url("?".MVCCore::$_cfg['page404']);
             }
+            /*
         // if router has action or view show it (rare)    
         } elseif (!empty($action) 
             and $rCtl->isAppView($action, $iClassName) 
@@ -330,6 +331,7 @@ class MvcController extends MvcCore {
             // all else fail, use internal notfound
             echo $rCtl->_notFound($action);            
         }
+        */
     }  
 
     public static function doView($ctl, $action) {
