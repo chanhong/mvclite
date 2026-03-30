@@ -94,7 +94,7 @@ class Util {
 
     function selfURL() {
 
-        return $this->siteURL() . $this->rootSite();
+        return self::siteURL() . self::rootSite();
     }
 
     function array2InsStr($iArray) {
@@ -174,13 +174,13 @@ class Util {
                 break;
             case "email":
                 $ret = filter_var($str, FILTER_SANITIZE_EMAIL);
-                $ret = filter_var($ret, FILTER_SANITIZE_STRING); // try to catch single quote
+                $ret = htmlspecialchars($ret); // try to catch single quote
                 break;
             case "num":
                 $ret = filter_var($str, FILTER_SANITIZE_NUMBER_INT);
                 break;
             case "txt":
-                $ret = filter_var($str, FILTER_SANITIZE_STRING);
+                $ret = htmlspecialchars($str);
                 $ret = self::escapeStr($ret); // strip out none ascii chars
                 break;
             case "amt":
@@ -205,14 +205,14 @@ class Util {
     function cleanArray($iVar) {
 
         foreach ($iVar as $k => $v) {
-            $eachpost[$k] = $this->getSafeVar($iVar, $k);
+            $eachpost[$k] = self::getSafeVar($iVar, $k);
         }
         return $eachpost;
     }
 
     function cleanAmt($amt) {
 
-        $ret = sprintf("%1.2f", $this->clean($amt) / 100, "num");
+        $ret = sprintf("%1.2f", self::clean($amt) / 100, "num");
         if (strlen($ret) > 11)
             $ret = 0;
         return $ret;
@@ -220,10 +220,10 @@ class Util {
 
     function getParm($iVar) {
 
-        return strtolower($this->getSafeVar($_GET, $iVar));
+        return strtolower(self::getSafeVar($_GET, $iVar));
     }
 
-    function getLdapByType($iType = 'email', $iValue) {
+    function getLdapByType($iType = 'email', $iValue='') {
 
         if (!class_exists('CLdap'))
             include("cldap.php");
@@ -372,7 +372,7 @@ class Util {
         while ($i <= $asize) {
             if (!empty($files['name'][$i])) {
                 $file = array($files['name'][$i], $files['type'][$i], $files['tmp_name'][$i], $files['error'][$i], $files['size'][$i]);
-                $msg .= $this->uploadFile($file, $targetFolder, $allowedExtensions);
+                $msg .= self::uploadFile($file, $targetFolder, $allowedExtensions);
             }
             $i++;
         }
@@ -383,7 +383,7 @@ class Util {
 
         list($fileName, $fileType, $fileTemp, $fileErr, $fileSize ) = $file;
         if ($fileErr == UPLOAD_ERR_OK) {
-            if ($this->isAllowedExtension($fileName, $allowedExtensions)) {
+            if (self::isAllowedExtension($fileName, $allowedExtensions)) {
                 $target = $targetFolder . "/" . $fileName;
                 if (file_exists($target)) {
                     $ret = "$fileName is already exists.<br />";
@@ -433,7 +433,7 @@ class Util {
         $oline = "";
         $strArry = explode("\n\r", $string);
         foreach ($strArry as $line) {
-            (strlen($line) > $maxWords) ? $strArray = $this->splitWords($line, $maxWords) : $strArray = array();
+            (strlen($line) > $maxWords) ? $strArray = self::splitWords($line, $maxWords) : $strArray = array();
             (!empty($strArray)) ? $oline .= implode("\n\r", $strArray) : $oline .= $line;
         }
         return $oline;
@@ -446,7 +446,7 @@ class Util {
             foreach ($objects as $object) {
                 if ($object != "." && $object != "..") {
                     if (filetype($dir . "/" . $object) == "dir")
-                        $this->delTree($dir . "/" . $object);
+                        self::delTree($dir . "/" . $object);
                     else
                         unlink($dir . "/" . $object);
                 }
