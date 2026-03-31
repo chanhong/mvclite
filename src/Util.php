@@ -174,13 +174,14 @@ class Util {
                 break;
             case "email":
                 $ret = filter_var($str, FILTER_SANITIZE_EMAIL);
-                $ret = htmlspecialchars($ret); // try to catch single quote
+                $ret = @filter_var($ret, FILTER_SANITIZE_STRING); // try to catch single quote
+
                 break;
             case "num":
                 $ret = filter_var($str, FILTER_SANITIZE_NUMBER_INT);
                 break;
             case "txt":
-                $ret = htmlspecialchars($str);
+                $ret = @filter_var($str, FILTER_SANITIZE_STRING);
                 $ret = self::escapeStr($ret); // strip out none ascii chars
                 break;
             case "amt":
@@ -223,7 +224,7 @@ class Util {
         return strtolower(self::getSafeVar($_GET, $iVar));
     }
 
-    function getLdapByType($iType = 'email', $iValue='') {
+    function getLdapByType($iType = 'email', $iValue = null) {
 
         if (!class_exists('CLdap'))
             include("cldap.php");

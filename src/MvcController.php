@@ -1,23 +1,25 @@
 <?php
 namespace MvcLite;
 
+
 class MvcController extends MvcCore {
 
-    private array $data = [];
+    public $layout;
+    public $_appFolder;
+    public $_viewFolder;
+    public $_widgetFolder;
+    public $vendorFolder;
+    public $publicFolder;
+    public $viewPath;
+    public $_layoutFolder;
+    public $layoutsPath;
 
-    public function __set($name, $value) {
-        $this->data[$name] = $value;
-    }
-
-    public function __get($name) {
-        return $this->data[$name] ?? null;
-    }
 
 
     public function __construct() {
 
         parent::__construct();
-        $this->__set('layout','bootstrap'); //set default template file
+        $this->layout = 'bootstrap'; //set default template file        
         $this->_appFolder = 'apps';
         $this->_viewFolder = 'views';
         $this->_widgetFolder = 'widgets';
