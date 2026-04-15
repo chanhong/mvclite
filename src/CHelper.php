@@ -7,20 +7,20 @@
  */
 
 /**
- * HTML Helper
+ * HTML CHelper
  *
  * @author chanhong
  */
 namespace MvcLite;
 
-class Helper {
+class CHelper {
     static $_lineBreak;
     public $ut;
     var $lineBreak;
     
     public function __construct() {
         (self::$_lineBreak == true) ?$this->lineBreak = "\n" : $this->lineBreak = "";
-        $this->ut = new Util;
+        $this->ut = new CUtil;
     }
 
     function urlKeyPair($iVar, $kArray) {

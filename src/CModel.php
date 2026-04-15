@@ -7,7 +7,7 @@
  */
 namespace MvcLite;
 
-class MvcModel extends MvcCore {
+class CModel extends CCore {
 
     public function __construct($tname, $id = null) {
         

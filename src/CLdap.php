@@ -13,7 +13,7 @@
  */
 namespace MvcLite;
 
-class Ldap {
+class CLdap {
 
     var $server;
     var $searchStr;

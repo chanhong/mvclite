@@ -2,11 +2,13 @@
 
 namespace MvcLite;
 
-class MvcAuth {
+class CAuth {
 
     const DOMAIN = "MVCLite";
     const ONEMONTH = 2592000;
-       
+      
+//    public static $_usrInfo;
+    
     private static $me;
     private static $salt;
     private $loggedIn;
@@ -24,11 +26,9 @@ class MvcAuth {
     
     public function __construct() {
         
-        $this->ut = new Util;
-        
+        $this->ut = new CUtil;
         $this->nid = null;
         $this->loggedIn = false;
-//        $this->expiryDate = mktime(0, 0, 0, 6, 2, 2037);
         $this->expiryDate = time() + self::ONEMONTH;
 
         // to be removed
@@ -37,6 +37,7 @@ class MvcAuth {
         $this->user = null;
     }
 
+    // Get Singleton object
     public static function getAuth($salt="") {
         
         if (is_null(self::$me)) {
@@ -45,7 +46,7 @@ class MvcAuth {
                 $salt = md5(rand() . microtime());
             }
             self::$salt = $salt;
-            self::$me = new MVCAuth();
+            self::$me = new CAuth();
             self::$me->init();
         }
         return self::$me;
@@ -57,11 +58,6 @@ class MvcAuth {
         $this->loggedIn = $this->attemptCookieLogin();
     }
 
-    public static function debug($iVar, $iStr = "", $iFormat = "") {
-        
-        return Util::debug($iVar, $iStr, $iFormat);
-    }
-
      /* 
      * utilize debug default to br
      * @param $ivar $istr $iformat  
@@ -69,7 +65,7 @@ class MvcAuth {
      */ 
     public static function pln($iVar, $iStr = "", $iFormat = "br") {
     
-        print Util::debug($iVar, $iStr, $iFormat);
+        print CUtil::debug($iVar, $iStr, $iFormat);
     }
     
     public function winUser() {
@@ -87,31 +83,28 @@ class MvcAuth {
     public function login($validate, $user) {
         
         $status = false;
-        if (empty($validate) or empty($user)) return $status;
-        
         // if login via form or win login
-        if (!empty($user['username'])) {
-//                $this->pln($user);
+        if (!empty($user['username']) and !empty($validate)) {
             if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
-//                if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate, $user['confirm_hash'])) {
                 $status = true;
             } elseif (!empty($user['winuser']) and $user['winuser'] == $validate ) {
                 $status = true;
             }
+            if ($status = true) {
+                $this->profile = $user;
+                $this->loggedIn = $status;
+                $this->generateBCCookies();
+            }
         }
-        
-        if ($status = true) {
-            $this->profile = $user;
-            $this->loggedIn = $status;
-            $this->generateBCCookies();
-            return $status;
-        }
+        return $status;
     }
 
     public function logout() {
         
         $this->loggedIn = false;
-        session_unset();         
+        unset($_SESSION['uinfo']);
+        unset($_SESSION['loggedin']);
+//        session_unset();         
         $this->clearCookies();
     }
 
@@ -247,26 +240,9 @@ class MvcAuth {
         $nid = base64_decode($c['n']);
         if ($nid === false)
             return false;
-
-        // handle this outside of Auth
-        /*
-        // We SELECT * so we can load the full user record into the user DBObject later
-        $row = $this->db->dbRow("users", ['where'=>"nid ='$nid'"]);
-        
-        if ($row === false)
-            return false;
-
-        $this->id = $row['id'];
-        $this->nid = $row['nid'];
-        $this->username = $row['username'];
-        $this->user = new User();
-        $this->user->id = $this->id;
-        $this->user->load($row);
-        return true;
-         * 
-         */
     }
-// from custom, check it out
+
+    // from custom, check it out
     public function requireUser($rUrl = "") {
         if (!$this->loggedIn())
             $this->sendToLoginPage($rUrl);
@@ -282,7 +258,6 @@ class MvcAuth {
     }
 
     public function changeCurrentUsername($new_username) {
-//        $db = Database::getDatabase();
        
         srand(time());
         $this->user->nid = Auth::newNid();
@@ -312,6 +287,7 @@ class MvcAuth {
 
         return true;
     }
+    
     public function changeCurrentPassword($new_password) {
         
         srand(time());
@@ -349,5 +325,7 @@ class MvcAuth {
             $u->password = self::hashedPassword($new_password);
             $u->update();
         }
-    }    
+    }  
+    
+    
 }

@@ -2,7 +2,7 @@
 namespace MvcLite;
 
 // simple class that encapsulates mail() with addition of mime file attachment.
-class Mailfile {
+class CMailfile {
 
     public $subject;
 

@@ -1,0 +1,126 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "16846a458a5d9aa23a325538be6bcb23",
+    "packages": [
+        {
+            "name": "chanhong/pdolite",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/chanhong/pdolite.git",
+                "reference": "2bec8f10c68ef730b25b8996c4b5d794c3c90c12"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/chanhong/pdolite/zipball/2bec8f10c68ef730b25b8996c4b5d794c3c90c12",
+                "reference": "2bec8f10c68ef730b25b8996c4b5d794c3c90c12",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "PdoLite\\": "/src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Chanh Ong",
+                    "homepage": "https://github.com/chanhong"
+                }
+            ],
+            "description": "database lite classes for mysql, sqlsrv, sqlite, odbc, pdo (mysql, sqlite, sqlsrv)",
+            "keywords": [
+                "db",
+                "lite",
+                "pdolite"
+            ],
+            "support": {
+                "issues": "https://github.com/chanhong/pdolite/issues",
+                "source": "https://github.com/chanhong/pdolite/tree/master"
+            },
+            "time": "2026-04-12T17:51:01+00:00"
+        },
+        {
+            "name": "chanhong/phploaderlite",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/chanhong/phploaderlite.git",
+                "reference": "dee172b62c5ef4f8a9164eb661dcbfbf29d90736"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/chanhong/phploaderlite/zipball/dee172b62c5ef4f8a9164eb661dcbfbf29d90736",
+                "reference": "dee172b62c5ef4f8a9164eb661dcbfbf29d90736",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "PhpLoaderLite\\": "/src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Chanh Ong",
+                    "homepage": "https://github.com/chanhong"
+                }
+            ],
+            "description": "PHP class auto loader lite",
+            "keywords": [
+                "lite",
+                "loader",
+                "phploaderlite"
+            ],
+            "support": {
+                "issues": "https://github.com/chanhong/phploaderlite/issues",
+                "source": "https://github.com/chanhong/phploaderlite/tree/master"
+            },
+            "time": "2017-07-05T21:22:02+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {
+        "chanhong/pdolite": 20,
+        "chanhong/phploaderlite": 20
+    },
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=5.3.0"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
+}

@@ -13,10 +13,17 @@
  */
 namespace MvcLite;
 
-class Util {
+class CUtil {
 
     public static function debug($iVar, $iStr = "", $iFormat = "") {
+        // Check if debug is enabled via _DEBUG_ENABLED flag
         
+        if (!defined('_DEBUG_ENABLED') || !_DEBUG_ENABLED) {
+            return null; // Debug disabled, skip all logging
+        }
+        
+        $str = $dTrace = "";
+
         (!empty($iStr) and strtolower($iStr) == "dtrace") ? $dTrace = "dtrace" : $dTrace = "";
         (!empty($iStr) and strtolower($iStr) <> "dtrace") ? $preText = "[-" . strtoupper($iStr) . "-] " : $preText = "";
         if (!empty($iVar)) {
@@ -25,11 +32,61 @@ class Util {
             if (!empty($dTrace))
                 $dTrace = self::dTrace();
             (empty($iFormat)) ? $str = $preText . $iVar : $str = "<pre>" . $preText . $iVar . "</pre>";
-        } else {
+        } 
+        /*
+        else {
             $str = $preText . ' Var is empty!';
         }
+        */
         $ret = $str . $dTrace . " ";
-        (!empty($_SESSION['debug'])) ? $_SESSION['debug'] .= $ret : $_SESSION['debug'] = $ret;
+        
+        // Write to file log
+        $logDir = dirname(dirname(dirname(__DIR__))) . '/db/logs';
+        @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
+        $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
+        $fileHandle = @fopen($logFile, 'a');
+        if ($fileHandle) {
+            fwrite($fileHandle, date('Y-m-d H:i:s') . " - " . $ret . "\n");
+            fclose($fileHandle);
+        }
+        
+        // Limit session debug to screen-full amount to prevent clutter - reset periodically
+        $screenFullLines = 20; // Reset after ~20 lines (typical screen height)
+        $maxScreenSize = 25600; // ~25KB per screen for on-screen display
+        
+        if (empty($_SESSION['dmsg'])) {
+            $_SESSION['dmsg'] = $ret;
+            $_SESSION['debug_resets'] = 0;
+            $_SESSION['debug_logs'] = [];
+        } else {
+            $currentSize = strlen($_SESSION['dmsg']);
+            $lineCount = substr_count($_SESSION['dmsg'], "\n");
+            
+            // Reset when approaching screen-full
+            if ($currentSize >= $maxScreenSize || $lineCount >= $screenFullLines) {
+                // Log the debug session to array before resetting
+                if (empty($_SESSION['debug_logs'])) {
+                    $_SESSION['debug_logs'] = [];
+                }
+                $_SESSION['debug_logs'][] = [
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'line_count' => $lineCount,
+                    'size_kb' => round($currentSize / 1024, 2),
+                    'reset_num' => (int)$_SESSION['debug_resets'] + 1
+                ];
+                
+                // Keep only last 10 debug logs to prevent array bloat
+                if (count($_SESSION['debug_logs']) > 10) {
+                    array_shift($_SESSION['debug_logs']);
+                }
+                
+                // Reset on-screen debug
+                $_SESSION['dmsg'] = "[SCREEN RESET - " . (int)$_SESSION['debug_resets'] + 1 . " | " . $lineCount . " lines logged]\n" . $ret;
+                $_SESSION['debug_resets'] = (int)$_SESSION['debug_resets'] + 1;
+            } else {
+                $_SESSION['dmsg'] .= $ret;
+            }
+        }
         return $ret;
     }
 
@@ -73,7 +130,7 @@ class Util {
         return $return;
     }
 
-    function rootSite() {
+      public static   function rootSite() {
 
         //    $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         //    $dirname = preg_replace('/\\\+/', '/', dirname(realpath($uri)));
@@ -83,7 +140,7 @@ class Util {
         return $dirname;
     }
 
-    function siteURL() {
+        public static function siteURL() {
 
         $protocol = "http://";
         if (!empty($_SERVER['HTTPS']))
@@ -92,7 +149,7 @@ class Util {
         return $protocol . $_SERVER['SERVER_NAME'] . $port;
     }
 
-    function selfURL() {
+    public static function selfURL() {
 
         return self::siteURL() . self::rootSite();
     }
@@ -175,7 +232,6 @@ class Util {
             case "email":
                 $ret = filter_var($str, FILTER_SANITIZE_EMAIL);
                 $ret = @filter_var($ret, FILTER_SANITIZE_STRING); // try to catch single quote
-
                 break;
             case "num":
                 $ret = filter_var($str, FILTER_SANITIZE_NUMBER_INT);
@@ -236,7 +292,7 @@ class Util {
     function sendAttachment($subject, $sendto, $replyto, $message, $htmlfile) {
 
         $mimetype = "text/plain";
-        $mailfile = new MailFile($subject, $sendto, $replyto, $message, $htmlfile, $mimetype);
+        $mailfile = new CMailfile($subject, $sendto, $replyto, $message, $htmlfile, $mimetype);
         $mailfile->sendfile();
     }
 
@@ -578,7 +634,7 @@ class Util {
     }
 
     public static function aliasLookup($app, $aliases) {
-//        Util::debug($app,'app');       
+//        CUtil::debug($app,'app');       
         $luArr = array();
         foreach ($aliases as $key => $aliasArray) {
             $varry = array_values($aliasArray);
@@ -588,11 +644,26 @@ class Util {
                 break;
             }
         }
-//        Util::debug($luArr,'alias');       
+//        CUtil::debug($luArr,'alias');       
         return $luArr;
     } 
     
-    public static function methodNotParent($class_name, $method_name) {   
+    public static function methodNotParent($class_name, $method_name)
+    {
+        $ret = false;
+        $class = new \ReflectionClass($class_name);
+        if ($class->hasMethod($method_name)) {
+            $m = $class->getMethod($method_name);
+            // Compare short names only
+            $declaredIn  = (new \ReflectionClass($m->class))->getShortName(); // Get short name of the class where the method is declared
+            $targetClass = (new \ReflectionClass($class_name))->getShortName(); // Get short name of the target class
+            if (strtolower($declaredIn) == strtolower($targetClass)) {
+                $ret = true;
+            }
+        }
+        return $ret;
+    }    
+    public static function not_ns_methodNotParent($class_name, $method_name) {   
 
         $ret = false;
         $class = new \ReflectionClass($class_name);
@@ -608,18 +679,18 @@ class Util {
     public static function methodlist($className) {
         
         $methods = get_class_methods($className);
-        print Util::debug($methods, $className.':methods','p');        
+        print CUtil::debug($methods, $className.':methods','p');        
     }   
 
     public static function parseQs($routes, $className=self::class) {
 
-        $qsArr = Util::qsValue();
-//        Util::debug($qsArr, __METHOD__.':qs','p');  
-//        Util::debug($className,'class');      
+        $qsArr = CUtil::qsValue(); // current qs ex: t=front&a=index, bad qs and got 404 before got here
+//        print CUtil::debug($qsArr, __METHOD__.':qs','p');  
+//        print CUtil::debug($className,'class');      
         $args = $qsArr;
-        if (!empty($args['t']) and $luArr = Util::aliasLookup($args['t'], $routes['alias'] )) {  
+        if (!empty($args['t']) and $luArr = CUtil::aliasLookup($args['t'], $routes['alias'] )) {  
             $args = $luArr;
-//            Util::debug($args, ':aft-alias','p');  
+//            print CUtil::debug($args, ':aft-alias');  
         }
         // if not a full QS then patch it up with either default controller or this class
         $defCntl = strtolower($routes['default_controller']);
@@ -638,8 +709,8 @@ class Util {
                 $args['a'] = "index";
             }
         }
-//        print Util::debug($routes, 'routes','p');         
-//        print Util::debug($args, ':args','p');         
+//        print CUtil::debug($routes, 'routes','p');         
+//        print CUtil::debug($args, ':args','p');         
         return $args;
     } 
 
@@ -659,6 +730,11 @@ class Util {
         return $oArray; 
     } 
 
+    protected static function shortClass(string $fqcn): string
+    {
+        return substr(strrchr($fqcn, '\\'), 1) ?: $fqcn;
+    }
+   
     public static function getClass($className) { 
 
         if (class_exists($className)) { 

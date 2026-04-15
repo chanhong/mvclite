@@ -2,7 +2,7 @@
 
 namespace MvcLite;
 
-class MvcError {
+class CError {
 
     // Singleton object. Leave $me alone.
     private static $me;
@@ -17,7 +17,7 @@ class MvcError {
     // Get Singleton object
     public static function getError() {
         if (is_null(self::$me))
-            self::$me = new MVCError();
+            self::$me = new CError();
         return self::$me;
     }
 
