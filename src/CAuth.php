@@ -86,11 +86,14 @@ class CAuth {
         // if login via form or win login
         if (!empty($user['username']) and !empty($validate)) {
             if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
+// hashpassword??
+            // gemini change          if (!empty($user['password']) and password_verify($validate, $user['password'])) {                
                 $status = true;
             } elseif (!empty($user['winuser']) and $user['winuser'] == $validate ) {
                 $status = true;
             }
             if ($status = true) {
+// gemini change            if ($status === true) {                
                 $this->profile = $user;
                 $this->loggedIn = $status;
                 $this->generateBCCookies();
@@ -199,6 +202,10 @@ class CAuth {
             $salt = self::$salt;
         } 
         return md5($hash . $salt . strtolower($p1) . strtolower($p2));
+    }
+// gemini change??
+    public function hashPassword($password) {
+        return password_hash($password, PASSWORD_DEFAULT);
     }
 
     public static function newNid() {

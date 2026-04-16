@@ -239,6 +239,7 @@ class CUtil {
             case "txt":
                 $ret = @filter_var($str, FILTER_SANITIZE_STRING);
                 $ret = self::escapeStr($ret); // strip out none ascii chars
+// gemini change, review later                $ret = self::escapeStr(htmlspecialchars($str, ENT_QUOTES, 'UTF-8'));
                 break;
             case "amt":
                 $patterns = array('/[^0-9.]/');
