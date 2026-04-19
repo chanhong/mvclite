@@ -62,6 +62,9 @@ class CCore {
     // -------------------------------------------------------------------------
     // Instance properties — unchanged
     // -------------------------------------------------------------------------
+    public $cfg;
+    public $stg;
+    
     public $retUrl;
     public $Auth;
     public $Error;
@@ -104,7 +107,9 @@ class CCore {
         ?CUtil   $ut    = null,
         ?CHelper $h     = null,
         mixed    $auth  = null,
-        mixed    $error = null
+        mixed    $error = null,
+        mixed    $cfg   = null,
+        mixed    $stg   = null
     ) {
         CHelper::$_lineBreak = true;
 
@@ -113,6 +118,10 @@ class CCore {
         $this->h     = $h     ?? $this->resolve('helper', fn() => new CHelper());
         $this->Auth  = $auth  ?? $this->resolve('auth',   fn() => CAuth::getAuth('MvcLiteSALT'));
         $this->Error = $error ?? $this->resolve('error',  fn() => CError::getError());
+
+        $this->cfg    = $cfg    ?? $this->resolve('cfg',     fn() => new CConfig());
+        $this->stg    = $stg    ?? $this->resolve('stg',     fn() => new CSetting());
+
 
         $this->get  = $_GET;
         $this->post = $_POST;
@@ -124,6 +133,7 @@ class CCore {
         $this->_class_path = strtolower((new \ReflectionClass($this))->getShortName()); // "ClassName" — getShortName() works in PHP 8.x
 
         (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
+//        print print_r($this->cfg->fdr,true); // for testing only, to be removed
     }
 
     /**

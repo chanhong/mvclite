@@ -21,7 +21,7 @@ class CDebug
     public static function IsDebug()
     {
         $ret = false;
-        if (_MVCDebug == true)
+        if (\_MVCDEBUG == true)
         //       || CUtil::isEqInList(CSecs::winUser(), self::getAppTxt("weblogin", "L"), '|')) // selective, only allow winuser listed in weblogin to see dmsg
         {
             $ret = true;
@@ -44,9 +44,74 @@ class CDebug
         }
     }
 
-    public static function _debug($iVar, $iStr = "", $iFormat = null)
+        public static function _debug($iVar, $iStr = "", $iFormat = "")
     {
-        //      print(print_r(CCore::$_cfg['dmsg'],true));    
+
+        $str = $dTrace = "";
+
+        (!empty($iStr) and strtolower($iStr) == "dtrace") ? $dTrace = "dtrace" : $dTrace = "";
+        (!empty($iStr) and strtolower($iStr) <> "dtrace") ? $preText = "[-" . strtoupper($iStr) . "-] " : $preText = "";
+        if (!empty($iVar)) {
+            if (is_array($iVar) or (is_object($iVar)))
+                $iVar = print_r($iVar, true);
+            if (!empty($dTrace))
+                $dTrace = self::dTrace();
+            (empty($iFormat)) ? $str = $preText . $iVar : $str = "<pre>" . $preText . $iVar . "</pre>";
+        }
+        $ret = $str . $dTrace . " ";
+
+        // Write to file log
+        $logDir = dirname(dirname(dirname(__DIR__))) . '/db/logs';
+        @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
+        $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
+        $fileHandle = @fopen($logFile, 'a');
+        if ($fileHandle) {
+            fwrite($fileHandle, date('Y-m-d H:i:s') . " - " . $ret . "\n");
+            fclose($fileHandle);
+        }
+
+        // Limit session debug to screen-full amount to prevent clutter - reset periodically
+        $screenFullLines = 20; // Reset after ~20 lines (typical screen height)
+        $maxScreenSize = 25600; // ~25KB per screen for on-screen display
+
+        if (empty($_SESSION['dmsg'])) {
+            $_SESSION['dmsg'] = $ret;
+            $_SESSION['debug_resets'] = 0;
+            $_SESSION['debug_logs'] = [];
+        } else {
+            $currentSize = strlen($_SESSION['dmsg']);
+            $lineCount = substr_count($_SESSION['dmsg'], "\n");
+
+            // Reset when approaching screen-full
+            if ($currentSize >= $maxScreenSize || $lineCount >= $screenFullLines) {
+                // Log the debug session to array before resetting
+                if (empty($_SESSION['debug_logs'])) {
+                    $_SESSION['debug_logs'] = [];
+                }
+                $_SESSION['debug_logs'][] = [
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'line_count' => $lineCount,
+                    'size_kb' => round($currentSize / 1024, 2),
+                    'reset_num' => (int) $_SESSION['debug_resets'] + 1
+                ];
+
+                // Keep only last 10 debug logs to prevent array bloat
+                if (count($_SESSION['debug_logs']) > 10) {
+                    array_shift($_SESSION['debug_logs']);
+                }
+
+                // Reset on-screen debug
+                $_SESSION['dmsg'] = "[SCREEN RESET - " . (int) $_SESSION['debug_resets'] + 1 . " | " . $lineCount . " lines logged]\n" . $ret;
+                $_SESSION['debug_resets'] = (int) $_SESSION['debug_resets'] + 1;
+            } else {
+                $_SESSION['dmsg'] .= $ret;
+            }
+        }
+        return $ret;
+    }
+    public static function cdebug_debug($iVar, $iStr = "", $iFormat = null)
+    {
+//              print(print_r($this->cfg->get('dmsg'),true));     //DI??
         $sVar = "";
         (!empty($iStr) and strtolower($iStr) == "dtrace") ? $dTrace = "dtrace" : $dTrace = "";
         if (!empty($dTrace))
@@ -60,7 +125,7 @@ class CDebug
                 ? $sVar .=  Self::isTruncateDebug($_SESSION['dmsg'])
                 : $sVar = "";
             $str = $preText . $sVar;
-            if (strlen($iFormat) > 0)
+            if (!empty($iFormat) && strlen($iFormat) > 0)
                 $str = "<pre>" . $str . "</pre>";
             if (CString::IsEmpty($str) == false) {
                 $sVar = $str . $dTrace . " ";
@@ -71,8 +136,9 @@ class CDebug
 
     public static function isTruncateDebug($iVar)
     {
+//        $this->cfg->get('dmsg.maxlines) // DI??
 
-        $trunSize = CCore::$_cfg['dmsg']['maxlines'] * CCore::$_cfg['dmsg']['maxscreen'];
+        $trunSize = CConfig::$_cfg['dmsg']['maxlines'] * CConfig::$_cfg['dmsg']['maxscreen'];
         if (!empty($iVar) && strlen($iVar) > 0) {
             $bs = strlen($iVar);
             if ($bs >= $trunSize) {
@@ -86,8 +152,9 @@ class CDebug
     {
         //print ($iVar);
         if (empty($iVar)) {
-            CCore::$_cfg['debug']['resets'] = 0;
-            CCore::$_cfg['debug']['logs'] = [];
+//            $this->cfg->set('debug.resets') =0;      // DI??
+            CConfig::$_cfg['debug']['resets'] = 0;
+            CConfig::$_cfg['debug']['logs'] = [];
         } else {
             // Write to file log
             $logDir = dirname(dirname(dirname(__DIR__))) . '/db/logs';
@@ -95,32 +162,33 @@ class CDebug
             $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
             $fileHandle = @fopen($logFile, 'a');
             $currentSize = strlen($iVar);
-            //            $lineCount = substr_count($iVar, "<br>",0,CCore::$_cfg['dmsg']['maxscreen']); // "\n"
-            $lineCount = ceil(strlen($iVar) / CCore::$_cfg['dmsg']['maxscreen']);
-            print " size: " . $currentSize . " lc: " . $lineCount;
+            //            $lineCount = substr_count($iVar, "<br>",0,CConfig::$_cfg['dmsg']['maxscreen']); // "\n"
+            $lineCount = ceil(strlen($iVar) / CConfig::$_cfg['dmsg']['maxscreen']);
+//            print " size: " . $currentSize . " lc: " . $lineCount;
 
             // Reset when approaching screen-full
             // Log the debug session to array before resetting
-            if (empty(CCore::$_cfg['debug']['logs'])) {
-                CCore::$_cfg['debug']['logs'] = [];
+            // $this->cfg->get('debug.logs]') = []; // DI??
+            if (empty(CConfig::$_cfg['debug']['logs'])) {
+                CConfig::$_cfg['debug']['logs'] = [];
             }
             // how did this get into debug dmsg?
-            (!empty(CCore::$_cfg['debug']['resets']))
-                ? CCore::$_cfg['debug']['resets'] = (int)CCore::$_cfg['debug']['resets'] + 1
-                : CCore::$_cfg['debug']['resets'] = 1;
+            (!empty(CConfig::$_cfg['debug']['resets']))
+                ? CConfig::$_cfg['debug']['resets'] = (int)CConfig::$_cfg['debug']['resets'] + 1
+                : CConfig::$_cfg['debug']['resets'] = 1;
 
-            CCore::$_cfg['debug']['logs'][] = [
+            CConfig::$_cfg['debug']['logs'][] = [
                 'timestamp' => date('Y-m-d H:i:s'),
                 'line_count' => $lineCount,
                 'size_kb' => round($currentSize / 1024, 2),
-                'reset_num' => (int)CCore::$_cfg['debug']['resets'] + 1
+                'reset_num' => (int)CConfig::$_cfg['debug']['resets'] + 1
             ];
             // Keep only last 10 debug logs to prevent array bloat
-            if (count(CCore::$_cfg['debug']['logs']) > 10) {
-                array_shift(CCore::$_cfg['debug']['logs']);
+            if (count(CConfig::$_cfg['debug']['logs']) > 10) {
+                array_shift(CConfig::$_cfg['debug']['logs']);
             }
             // Reset on-screen debug
-            $rbuff = "[RESET - " . (int)CCore::$_cfg['debug']['resets'] + 1
+            $rbuff = "[RESET - " . (int)CConfig::$_cfg['debug']['resets'] + 1
                 . " | " . $lineCount . " lines logged]";
             if ($fileHandle) {
                 fwrite($fileHandle, date('Y-m-d H:i:s') . ": " . $rbuff . "\n[" . $iVar . "]\n");
@@ -146,8 +214,8 @@ class CDebug
 
         if (empty($_SESSION['dmsg'])) {
             //            $_SESSION['dmsg'] = $ret;
-            CCore::$_cfg['debug']['resets'] = 0;
-            CCore::$_cfg['debug']['logs'] = [];
+            CConfig::$_cfg['debug']['resets'] = 0;
+            CConfig::$_cfg['debug']['logs'] = [];
         } else {
             $currentSize = strlen($_SESSION['dmsg']);
             $lineCount = substr_count($_SESSION['dmsg'], "<br>"); // "\n"
@@ -155,41 +223,41 @@ class CDebug
 
             // Reset when approaching screen-full
             if (
-                $currentSize >= CCore::$_cfg['dmsg']['maxscreen']
-                || $lineCount >= CCore::$_cfg['dmsg']['maxlines']
+                $currentSize >= CConfig::$_cfg['dmsg']['maxscreen']
+                || $lineCount >= CConfig::$_cfg['dmsg']['maxlines']
             ) {
 
-                if ($currentSize >= CCore::$_cfg['dmsg']['maxscreen']) {
+                if ($currentSize >= CConfig::$_cfg['dmsg']['maxscreen']) {
                     $trun = substr($_SESSION['dmsg'], -strlen($_SESSION['dmsg']) - substr_count($_SESSION['dmsg'], "<br>"));
                     $_SESSION['dmsg'] = $trun;
 
                     // Log the debug session to array before resetting
 
-                    if (empty(CCore::$_cfg['debug']['logs'])) {
-                        CCore::$_cfg['debug']['logs'] = [];
+                    if (empty(CConfig::$_cfg['debug']['logs'])) {
+                        CConfig::$_cfg['debug']['logs'] = [];
                     }
                     // how did this get into debug dmsg?
-                    (!empty(CCore::$_cfg['debug']['resets']))
-                        ? CCore::$_cfg['debug']['resets'] = (int)CCore::$_cfg['debug']['resets'] + 1
-                        : CCore::$_cfg['debug']['resets'] = 1;
+                    (!empty(CConfig::$_cfg['debug']['resets']))
+                        ? CConfig::$_cfg['debug']['resets'] = (int)CConfig::$_cfg['debug']['resets'] + 1
+                        : CConfig::$_cfg['debug']['resets'] = 1;
 
-                    CCore::$_cfg['debug']['logs'][] = [
+                    CConfig::$_cfg['debug']['logs'][] = [
                         'timestamp' => date('Y-m-d H:i:s'),
                         'line_count' => $lineCount,
                         'size_kb' => round($currentSize / 1024, 2),
-                        'reset_num' => (int)CCore::$_cfg['debug']['resets'] + 1
+                        'reset_num' => (int)CConfig::$_cfg['debug']['resets'] + 1
                     ];
 
 
                     // Keep only last 10 debug logs to prevent array bloat
-                    if (count(CCore::$_cfg['debug']['logs']) > 10) {
-                        array_shift(CCore::$_cfg['debug']['logs']);
+                    if (count(CConfig::$_cfg['debug']['logs']) > 10) {
+                        array_shift(CConfig::$_cfg['debug']['logs']);
                     }
 
                     // Reset on-screen debug
                     $_SESSION['dmsg'] = ""; // Clear current debug for new session
 
-                    $_SESSION['dmsg'] = "[RESET - " . (int)CCore::$_cfg['debug']['resets'] + 1
+                    $_SESSION['dmsg'] = "[RESET - " . (int)CConfig::$_cfg['debug']['resets'] + 1
                         . " | " . $lineCount . " lines logged]\n"
                         //                   . $ret
                     ;
@@ -215,7 +283,7 @@ class CDebug
     {
 
         // Display debug messages if they exist
-        if (!empty($_SESSION['dmsg']) || !empty(CCore::$_cfg['debug']['logs'])) {
+        if (!empty($_SESSION['dmsg']) || !empty(CConfig::$_cfg['debug']['logs'])) {
             echo '<hr style="margin-top: 30px; border-top: 2px solid #ccc;">';
             echo '<div style="background-color: #f5f5f5; padding: 15px; margin-top: 20px; font-size: 11px; font-family: monospace; border: 1px solid #ddd;">';
 
@@ -235,12 +303,12 @@ class CDebug
             // Session Memory Info
             echo '<div style="margin-bottom: 20px;">';
             echo '<strong style="font-size: 13px; color: #333;">?? SESSION MEMORY:</strong><br>';
-            echo 'Debug Resets: <strong>' . (isset(CCore::$_cfg['debug']['resets']) ? CCore::$_cfg['debug']['resets'] : 0) . '</strong> | ';
+            echo 'Debug Resets: <strong>' . (isset(CConfig::$_cfg['debug']['resets']) ? CConfig::$_cfg['debug']['resets'] : 0) . '</strong> | ';
             echo 'Session Size: <strong>' . round(strlen(serialize($_SESSION)) / 1024, 2) . ' KB</strong><br>';
             echo '</div>';
 
             // Debug Sessions History
-            if (!empty(CCore::$_cfg['debug']['logs'])) {
+            if (!empty(CConfig::$_cfg['debug']['logs'])) {
                 echo '<div style="margin-bottom: 20px;">';
                 echo '<strong style="font-size: 13px; color: #333;">?? Debug SESSIONS HISTORY:</strong><br>';
                 echo '<table style="width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11px;">';
@@ -250,7 +318,7 @@ class CDebug
                 echo '<th style="padding: 5px; text-align: left; border-right: 1px solid #ccc;">Size</th>';
                 echo '<th style="padding: 5px; text-align: left;">Timestamp</th>';
                 echo '</tr>';
-                foreach (array_reverse(CCore::$_cfg['debug']['logs']) as $index => $log) {
+                foreach (array_reverse(CConfig::$_cfg['debug']['logs']) as $index => $log) {
                     $bgColor = ($index % 2 === 0) ? 'white' : '#f9f9f9';
                     echo "<tr style=\"background-color: {$bgColor}; border-bottom: 1px solid #ddd;\">";
                     echo "<td style=\"padding: 5px; border-right: 1px solid #ccc;\">#{$log['reset_num']}</td>";

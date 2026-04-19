@@ -51,13 +51,13 @@ class CMenu
             // CMsg::_pdmsg($mnuType."-".$s, "m-i");
             if ($s != null && strlen($s) > 0)
             {
-              $lnka = CUtils::mnu_s2a($mnu[$s], $s); // non-secure, inclusive
+              $lnka = CUtil::mnu_s2a($mnu[$s], $s); // non-secure, inclusive
               if (
                 CSecs::isPublicAccess4Mnu($lnka, $f) == true
                 || CSecs::isUsrHasAccess2Mnu($lnka, $f) == true
               )
               {
-                $sbx::Append(CUtils::a2Li($lnka));
+                $sbx::Append(CUtil::a2Li($lnka));
               }
             }
           }
@@ -78,7 +78,7 @@ class CMenu
       $selectctrl = "";
       if ($qsa != null && count($qsa) > 0)
       {
-        $fa = CUtils::getCfg("apps");
+        $fa = CUtil::getCfg("apps");
         $mnu_apps = self::sName2Mnu($fa);
         // CMsg::_pdmsg($fa, "setActiveCtrl");
         if ($mnu_apps != null && isset($mnu_apps[$qsa[0]]) && strlen($mnu_apps[$qsa[0]]) > 0)
@@ -125,7 +125,7 @@ class CMenu
       {
         if (CString::IsEmpty($s) == false && $s != $mnuType) // exclude the default controller in the submenu
         {
-          $lnka = CUtils::mnu_s2a($mnu[$s], $s); // http:\//localhost:83/ejvnetdev/test, test
+          $lnka = CUtil::mnu_s2a($mnu[$s], $s); // http:\//localhost:83/ejvnetdev/test, test
                                      // [lnka]:(0=[http://localhost:83/ejvnetdev/?t=jvadm],1=[],2=[],3=[JV Admin]) 
                                      // CMsg::_pdmsg($lnka, "lnka");
           if (
@@ -203,7 +203,7 @@ class CMenu
           //          $nvList->add(Ucase($f), tap("/" . $dPath . "/" . $f));
           $nvList->add($f, tap("/" . $dPath . "/" . $f));
         }
-        //        {"Autocomplete",CUtils::tap("/jendo/autocomplete")}, 
+        //        {"Autocomplete",CUtil::tap("/jendo/autocomplete")}, 
       }
       return $nvList;
     }

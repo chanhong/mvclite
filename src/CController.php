@@ -10,51 +10,30 @@ class CController extends Ccore
     public $_widgetFolder;
     public $vendorFolder;
     public $publicFolder;
-    public $viewPath;
     public $_layoutFolder;
-    public $layoutsPath;
+    protected $styleless    = [];    
+//    public $viewPath;
+//    public $layoutsPath;
 
 
     public function __construct()
     {
-        /*
-            CCore::$_cfg["folder"] =  [
-            'app' => 'apps',
-            'view' => 'views',
-            'widget' => 'widgets',
-            'vendor' => 'vendor',
-            'public' => 'public', 
-            'layout' => 'layouts',
-        ];
-
-        CCore::$_cfg["path"] =  [
-            'view' => CCore::$_cfg['folder']['app'] . DS.CCore::$_cfg['folder']['view'],
-            'layout' => CCore::$_cfg['folder']['app'] . DS.CCore::$_cfg['folder']['layout'],
-        ];
-                $this->layout = 'bootstrap'; //set default template file
-                $this->_appFolder = 'apps';
-                $this->_viewFolder = 'views';
-                $this->_widgetFolder = 'widgets';
-                $this->vendorFolder = "vendor";
-                $this->publicFolder = 'public';
-                $this->_layoutFolder = 'layouts';
-                $this->viewPath = $this->_appFolder . DS . $this->_viewFolder;
-                $this->layoutsPath = $this->_appFolder . DS . $this->_layoutFolder;
-
-        */
         parent::__construct();
-        $this->layout = CCore::$_cfg["info"]['layout']; //set default template file
-        $this->_appFolder = CCore::$_cfg["folder"]['app'];
-        $this->_viewFolder = CCore::$_cfg["folder"]['view'];
-        $this->_widgetFolder = CCore::$_cfg["folder"]['widget'];
-        $this->vendorFolder = CCore::$_cfg["folder"]['vendor'];
-        $this->publicFolder = CCore::$_cfg["folder"]['public'];
-        $this->_layoutFolder = CCore::$_cfg["folder"]['layout'];
-        $this->viewPath = $this->_appFolder . DS . $this->_viewFolder;
-        $this->layoutsPath = $this->_appFolder . DS . $this->_layoutFolder;
+        $this->layout = $this->cfg->get('info.layout'); //set default template file
+        $this->_appFolder = $this->cfg->get('folder.app');
+        $this->_viewFolder = $this->cfg->get('folder.view');
+        $this->_widgetFolder =$this->cfg->get('folder.widget');
+        $this->vendorFolder = $this->cfg->get('folder.vendor');
+        $this->publicFolder = $this->cfg->get('folder.public');
+        $this->_layoutFolder = $this->cfg->get('folder.layout');
+        
+        $this->cfg->path['view'] = $this->_appFolder . DS . $this->_viewFolder;
+        $this->cfg->path['layout'] = $this->_appFolder . DS . $this->_layoutFolder;
+        $this->stg->cur['qs'] = CUtil::qsValue(); // current query string
+        $this->stg->qs = CUtil::qsValue(); // current query string
+//        print CDebug::debug($this->cfg->_cfg['db']);
 
-        $conn = $this->db->dbConnect(Ccore::$_cfg['db']['dsn'], Ccore::$_cfg['db']['username'], Ccore::$_cfg['db']['password']);
-
+        $conn = $this->db->dbConnect( $this->cfg->get('db.dsn'),  $this->cfg->get('db.username'),  $this->cfg->get('db.password'));
     }
 
     function winUser()
@@ -116,7 +95,7 @@ class CController extends Ccore
 
         //    return (CAuth::$_profile['level'] === $type);
 
-        return (CCore::$_profile['level'] === $type);
+        return (CSetting::$_profile['level'] === $type);
     }
 
     public function sendToLoginPage($rUrl = "")
@@ -180,7 +159,8 @@ class CController extends Ccore
     {
 
         (empty($layout)) ? $oLayout = $this->layout : $oLayout = $layout;
-        $layoutFile = DOCROOT . DS . $this->layoutsPath . DS . $oLayout . '.' . $this->view_ext;
+//        $layoutFile = DOCROOT . DS . $this->layoutsPath . DS . $oLayout . '.' . $this->view_ext;
+        $layoutFile = DOCROOT . DS . $this->cfg->path['layout'] . DS . $oLayout . '.' . $this->view_ext;
         //                    print_r($layoutFile);
         (file_exists($layoutFile)) ? $ret = $layoutFile : $ret = "";
         return $ret;
@@ -188,8 +168,10 @@ class CController extends Ccore
 
     public static function is404()
     {
+        // this is not object, DI?? 
+
         $ret = "";
-        $vFile = DOCROOT . DS . CCore::$_cfg['path']['view'] . DS . CCore::$_cfg['routes']['404'] . CCore::$_cfg['info']['viewext'];
+        $vFile = DOCROOT . DS . CConfig::$_cfg['path']['view'] . DS . CConfig::$_cfg['routes']['404'] . CConfig::$_cfg['info']['viewext'];
         print_r($vFile);
         (file_exists($vFile)) ? $ret = $vFile : $ret = "";
         return $ret;
@@ -222,10 +204,11 @@ class CController extends Ccore
 
         $fileName = $view . '.' . $this->view_ext;
         // class widgets override widgets from the layouts folder
-        $cvFile = DOCROOT . DS . $this->viewPath . DS . $class . DS . $this->_widgetFolder . DS . $fileName;
+        $cvFile = DOCROOT . DS . $this->cfg->path['view'] . DS . $class . DS . $this->_widgetFolder . DS . $fileName;
         (!empty($class) and (file_exists($cvFile)))
             ? $vFile = $cvFile
-            : $vFile = DOCROOT . DS . $this->layoutsPath . DS . $this->_widgetFolder . DS . $fileName;
+//            : $vFile = DOCROOT . DS . $this->layoutsPath . DS . $this->_widgetFolder . DS . $fileName;
+            : $vFile = DOCROOT . DS . $this->cfg->path['layout'] . DS . $this->_widgetFolder . DS . $fileName;
         permDbg($vFile, 'widget');
         (file_exists($vFile)) ? $return = $this->captureContent($vFile) : $return = "";
         return $return;
@@ -239,7 +222,7 @@ class CController extends Ccore
         (empty($class))
             ? $viewClass = $this->_class_path : $viewClass = $class;
         $fview = $viewClass . DS . $fileName;
-        $vFile = strtolower(DOCROOT . DS . $this->viewPath . DS . $fview);
+        $vFile = strtolower(DOCROOT . DS . $this->cfg->path['view'] . DS . $fview);
         (file_exists($vFile)) ? $ret = $vFile : $ret = "";
         return $ret;
     }
@@ -354,11 +337,11 @@ class CController extends Ccore
     public static function isController($className)
     {
 
-        //    pln(MvcCore::$_cfg,'cfg');
+//            pln($this->cfg->get('cfg'));
         if (
             !empty($className)
-            and !empty(Ccore::$_cfg['controllers'])
-            and array_search(strtolower($className), array_map('strtolower', Ccore::$_cfg['controllers']))
+            and !empty(CConfig::$_cfg['controllers'])
+            and array_search(strtolower($className), array_map('strtolower', CConfig::$_cfg['controllers']))
         ) {
             return true;
         }
@@ -390,7 +373,8 @@ class CController extends Ccore
                 else {
 //                    print " good t= bad a= cn: $className a: $action" . ", args: " . print_r($args, true);
                     CUtil::debug("Custom 404: $className-$action");
-                    self::redirect2Url("?" . Ccore::$_cfg['routes']['page404']);
+// $this->cfg->get('routes'); // DI??
+                    self::redirect2Url("?" . CConfig::$_cfg['routes']['page404']);
                 }
                 break;
             // WORK, router? BAD t=,  good action, reditrect?   
@@ -402,9 +386,9 @@ class CController extends Ccore
                 break;
             // WORK-unified 404, bad t= and/ or a=, else fail, use internal 404
             default:
-                if ($rCtl->isAppView(Ccore::$_cfg['routes']['page404'], $shortName)) {
+                if ($rCtl->isAppView(CConfig::$_cfg['routes']['page404'], $shortName)) {
                     CUtil::debug("Custom 404: $className-$action");
-                    self::redirect2Url("?" . Ccore::$_cfg['routes']['page404']); // WORK, bad t, good a and router page404 exist
+                    self::redirect2Url("?" . CConfig::$_cfg['routes']['page404']); // WORK, bad t, good a and router page404 exist
                 } else {
                     CUtil::debug("Internal 404: $className-$action");
                     gI404("$className-$action"); // internal 404
