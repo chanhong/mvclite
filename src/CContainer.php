@@ -20,7 +20,8 @@ namespace MvcLite;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
-class CContainer {
+class CContainer
+{
 
     /** @var array<string, callable> */
     private array $bindings = [];
@@ -63,12 +64,73 @@ class CContainer {
      *
      * @throws \RuntimeException if no binding was registered for $id
      */
-    public function make(string $id): mixed
+    public function make_before_autowire(string $id): mixed
     {
         if (!isset($this->bindings[$id])) {
             throw new \RuntimeException("Container: no binding registered for '$id'.");
         }
         return ($this->bindings[$id])($this);
+    }
+
+    public function make(string $id): mixed
+    {
+        // 1. existing binding? use it
+        if (isset($this->bindings[$id])) {
+            return ($this->bindings[$id])($this);
+        }
+
+        // 2. no binding — try to auto-wire if $id is a valid class
+        if (class_exists($id)) {
+            return $this->autoWire($id);
+        }
+
+        throw new \RuntimeException("Container: no binding registered for '$id'.");
+    }
+
+    /*
+    // auto wire work in these 3 cases of classes
+    // So the simple rule going forward is: if your new class only depends on other classes (not strings, arrays, or primitives), auto-wire handles it automatically. No index.php changes needed.
+    1. No constructor at all
+    phpclass CMyHelper {
+        // nothing
+    }
+    2. Constructor with no parameters
+    phpclass CMyHelper {
+        public function __construct() { }
+    }
+    3. Constructor with type-hinted class parameters
+    phpclass CMyService {
+        public function __construct(CUtil $ut, CHelper $h) { }  // ← auto-wired recursively
+
+    // It will NOT auto-wire when constructor has:
+        public function __construct(string $salt) { }    // ← primitive, no type to reflect on
+        public function __construct(array $config) { }   // ← same problem
+        public function __construct(mixed $anything) { } // ← too vague
+    */
+    private function autoWire(string $className): mixed
+    {
+        $ref = new \ReflectionClass($className);
+        $constructor = $ref->getConstructor();
+
+        // no constructor or no params — just new it
+        if (!$constructor || !$constructor->getParameters()) {
+            return new $className();
+        }
+
+        // resolve each parameter by its type hint
+        $deps = [];
+        foreach ($constructor->getParameters() as $param) {
+            $type = $param->getType();
+            if ($type && !$type->isBuiltin()) {
+                $deps[] = $this->make($type->getName()); // recursive resolve
+            } elseif ($param->isOptional()) {
+                $deps[] = $param->getDefaultValue();
+            } else {
+                throw new \RuntimeException("Container: cannot auto-wire parameter '\${$param->getName()}' in $className.");
+            }
+        }
+
+        return $ref->newInstanceArgs($deps);
     }
 
     /**

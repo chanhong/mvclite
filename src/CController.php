@@ -1,5 +1,6 @@
 <?php
 namespace MvcLite;
+// need to clean up static related call or variables.
 
 class CController extends Ccore
 {
