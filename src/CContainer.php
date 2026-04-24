@@ -14,7 +14,13 @@
  *   $container->singleton('error',  fn() => \MvcLite\CError::getError());
  *
  *   \MvcLite\CCore::setContainer($container);
- */
+ * 
+* Class   How Why
+* cfg, db, auth, error manual singletonspecial construction
+* stg, util, helper manual singletonshared state/utilities
+* Controllers auto-wire fresh per request
+* New simple classes auto-wire no registration needed
+*/
 
 namespace MvcLite;
 
@@ -74,13 +80,21 @@ class CContainer
 
     public function make(string $id): mixed
     {
-        // 1. existing binding? use it
         if (isset($this->bindings[$id])) {
             return ($this->bindings[$id])($this);
         }
 
-        // 2. no binding — try to auto-wire if $id is a valid class
-        if (class_exists($id)) {
+        $shortName = substr(strrchr($id, '\\'), 1) ?: $id;
+
+        // debug — remove after testing
+        /*
+        pln($id, 'full name');
+        pln($shortName, 'short name');
+        pln(class_exists($id) ? 'yes' : 'no', 'class_exists full');
+        pln(class_exists($shortName) ? 'yes' : 'no', 'class_exists short');
+        pln(class_exists($id) ? 'yes' : 'no', 'class_exists full AFTER short trigger');
+    */
+        if (class_exists($id) || class_exists($shortName)) {
             return $this->autoWire($id);
         }
 
@@ -91,15 +105,15 @@ class CContainer
     // auto wire work in these 3 cases of classes
     // So the simple rule going forward is: if your new class only depends on other classes (not strings, arrays, or primitives), auto-wire handles it automatically. No index.php changes needed.
     1. No constructor at all
-    phpclass CMyHelper {
+    class CMyHelper {
         // nothing
     }
     2. Constructor with no parameters
-    phpclass CMyHelper {
+    class CMyHelper {
         public function __construct() { }
     }
     3. Constructor with type-hinted class parameters
-    phpclass CMyService {
+    class CMyService {
         public function __construct(CUtil $ut, CHelper $h) { }  // ← auto-wired recursively
 
     // It will NOT auto-wire when constructor has:

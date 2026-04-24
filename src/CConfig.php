@@ -30,7 +30,7 @@ class CConfig
     // property and the sync call in __construct can be removed.
     // ------------------------------------------------------------------
 // CConfig.php
-public array $path = [];
+    public array $path = [];
 
 
     public static array $_cfg = [];
@@ -71,7 +71,7 @@ public array $path = [];
 
         // Dot-notation traversal
         $segments = explode('.', $key);
-        $value    = $this->data;
+        $value = $this->data;
 
         foreach ($segments as $segment) {
             if (!is_array($value) || !array_key_exists($segment, $value)) {
@@ -92,7 +92,7 @@ public array $path = [];
     public function set(string $key, mixed $value): void
     {
         $segments = explode('.', $key);
-        $target   = &$this->data;
+        $target = &$this->data;
 
         foreach ($segments as $segment) {
             if (!isset($target[$segment]) || !is_array($target[$segment])) {

@@ -20,6 +20,10 @@ class CUtil
     {
                 return CDebug::debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
+    public static function _debug($iVar, $iStr = "", $iFormat = "")
+    {
+                return CDebug::_debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
+    }
 
     public static function cutil_debug($iVar, $iStr = "", $iFormat = "")
     {
@@ -43,7 +47,7 @@ class CUtil
         $ret = $str . $dTrace . " ";
 
         // Write to file log
-        $logDir = dirname(dirname(dirname(__DIR__))) . '/db/logs';
+        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
         @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
         $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
         $fileHandle = @fopen($logFile, 'a');
@@ -637,7 +641,7 @@ class CUtil
         return is_array($arr) ? array_map(__METHOD__, $arr) : stripslashes(trim($arr));
     }
 
-    function add2SessVar($iVar, $msg)
+    function add2SessVar($iVar, $msg) // self:: in CUtil class is fine, outsie will trigger depreciated warning
     {
         (!empty($_SESSION[$iVar])) ? $_SESSION[$iVar] .= " $msg" : $_SESSION[$iVar] = $msg;
     }

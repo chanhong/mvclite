@@ -133,7 +133,6 @@ class CCore {
         $this->_class_path = strtolower((new \ReflectionClass($this))->getShortName()); // "ClassName" — getShortName() works in PHP 8.x
 
         (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
-//        print print_r($this->cfg->fdr,true); // for testing only, to be removed
     }
 
     /**

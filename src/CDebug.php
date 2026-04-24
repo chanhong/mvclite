@@ -13,10 +13,20 @@ namespace MvcLite;
  * @author chanhong
  */
 
-
+use Mvclite\CCore;
 
 class CDebug
 {
+    private static ?CConfig $cfg = null;  // static property since all methods are static
+
+    public static function init(): void
+    { // use this or use static variable
+        if (isset(self::$cfg))
+            return;  // already initialized
+        if (CCore::getContainer()->has('cfg')) {
+            self::$cfg = CCore::getContainer()->make('cfg');
+        }
+    }
 
     public static function IsDebug()
     {
@@ -39,12 +49,12 @@ class CDebug
     }
     public static function debug($iVar, $iStr = "", $iFormat = null)
     {
-        if (Self::IsDebug() == true) {
-            return Self::_debug($iVar, $iStr, $iFormat);
+        if (self::IsDebug() == true) {
+            return self::_debug($iVar, $iStr, $iFormat);
         }
     }
 
-        public static function _debug($iVar, $iStr = "", $iFormat = "")
+    public static function _debug($iVar, $iStr = "", $iFormat = "")
     {
 
         $str = $dTrace = "";
@@ -59,9 +69,10 @@ class CDebug
             (empty($iFormat)) ? $str = $preText . $iVar : $str = "<pre>" . $preText . $iVar . "</pre>";
         }
         $ret = $str . $dTrace . " ";
+        //        $ret = print_r($ret, true);                
 
         // Write to file log
-        $logDir = dirname(dirname(dirname(__DIR__))) . '/db/logs';
+        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
         @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
         $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
         $fileHandle = @fopen($logFile, 'a');
@@ -111,7 +122,7 @@ class CDebug
     }
     public static function cdebug_debug($iVar, $iStr = "", $iFormat = null)
     {
-//              print(print_r($this->cfg->get('dmsg'),true));     //DI??
+        //              print(print_r($this->cfg->get('dmsg'),true));     //DI??
         $sVar = "";
         (!empty($iStr) and strtolower($iStr) == "dtrace") ? $dTrace = "dtrace" : $dTrace = "";
         if (!empty($dTrace))
@@ -122,7 +133,7 @@ class CDebug
             if (is_array($iVar) or (is_object($iVar)))
                 $sVar = print_r($iVar, true);
             (!empty($_SESSION['dmsg']))
-                ? $sVar .=  Self::isTruncateDebug($_SESSION['dmsg'])
+                ? $sVar .= self::isTruncateDebug($_SESSION['dmsg'])
                 : $sVar = "";
             $str = $preText . $sVar;
             if (!empty($iFormat) && strlen($iFormat) > 0)
@@ -136,7 +147,7 @@ class CDebug
 
     public static function isTruncateDebug($iVar)
     {
-//        $this->cfg->get('dmsg.maxlines) // DI??
+        //        $this->cfg->get('dmsg.maxlines) // DI??
 
         $trunSize = CConfig::$_cfg['dmsg']['maxlines'] * CConfig::$_cfg['dmsg']['maxscreen'];
         if (!empty($iVar) && strlen($iVar) > 0) {
@@ -150,9 +161,9 @@ class CDebug
 
     public static function dLogReset($iVar)
     {
+
         //print ($iVar);
         if (empty($iVar)) {
-//            $this->cfg->set('debug.resets') =0;      // DI??
             CConfig::$_cfg['debug']['resets'] = 0;
             CConfig::$_cfg['debug']['logs'] = [];
         } else {
@@ -164,7 +175,7 @@ class CDebug
             $currentSize = strlen($iVar);
             //            $lineCount = substr_count($iVar, "<br>",0,CConfig::$_cfg['dmsg']['maxscreen']); // "\n"
             $lineCount = ceil(strlen($iVar) / CConfig::$_cfg['dmsg']['maxscreen']);
-//            print " size: " . $currentSize . " lc: " . $lineCount;
+            //            print " size: " . $currentSize . " lc: " . $lineCount;
 
             // Reset when approaching screen-full
             // Log the debug session to array before resetting
@@ -174,21 +185,21 @@ class CDebug
             }
             // how did this get into debug dmsg?
             (!empty(CConfig::$_cfg['debug']['resets']))
-                ? CConfig::$_cfg['debug']['resets'] = (int)CConfig::$_cfg['debug']['resets'] + 1
+                ? CConfig::$_cfg['debug']['resets'] = (int) CConfig::$_cfg['debug']['resets'] + 1
                 : CConfig::$_cfg['debug']['resets'] = 1;
 
             CConfig::$_cfg['debug']['logs'][] = [
                 'timestamp' => date('Y-m-d H:i:s'),
                 'line_count' => $lineCount,
                 'size_kb' => round($currentSize / 1024, 2),
-                'reset_num' => (int)CConfig::$_cfg['debug']['resets'] + 1
+                'reset_num' => (int) CConfig::$_cfg['debug']['resets'] + 1
             ];
             // Keep only last 10 debug logs to prevent array bloat
             if (count(CConfig::$_cfg['debug']['logs']) > 10) {
                 array_shift(CConfig::$_cfg['debug']['logs']);
             }
             // Reset on-screen debug
-            $rbuff = "[RESET - " . (int)CConfig::$_cfg['debug']['resets'] + 1
+            $rbuff = "[RESET - " . (int) CConfig::$_cfg['debug']['resets'] + 1
                 . " | " . $lineCount . " lines logged]";
             if ($fileHandle) {
                 fwrite($fileHandle, date('Y-m-d H:i:s') . ": " . $rbuff . "\n[" . $iVar . "]\n");
@@ -238,14 +249,14 @@ class CDebug
                     }
                     // how did this get into debug dmsg?
                     (!empty(CConfig::$_cfg['debug']['resets']))
-                        ? CConfig::$_cfg['debug']['resets'] = (int)CConfig::$_cfg['debug']['resets'] + 1
+                        ? CConfig::$_cfg['debug']['resets'] = (int) CConfig::$_cfg['debug']['resets'] + 1
                         : CConfig::$_cfg['debug']['resets'] = 1;
 
                     CConfig::$_cfg['debug']['logs'][] = [
                         'timestamp' => date('Y-m-d H:i:s'),
                         'line_count' => $lineCount,
                         'size_kb' => round($currentSize / 1024, 2),
-                        'reset_num' => (int)CConfig::$_cfg['debug']['resets'] + 1
+                        'reset_num' => (int) CConfig::$_cfg['debug']['resets'] + 1
                     ];
 
 
@@ -257,7 +268,7 @@ class CDebug
                     // Reset on-screen debug
                     $_SESSION['dmsg'] = ""; // Clear current debug for new session
 
-                    $_SESSION['dmsg'] = "[RESET - " . (int)CConfig::$_cfg['debug']['resets'] + 1
+                    $_SESSION['dmsg'] = "[RESET - " . (int) CConfig::$_cfg['debug']['resets'] + 1
                         . " | " . $lineCount . " lines logged]\n"
                         //                   . $ret
                     ;

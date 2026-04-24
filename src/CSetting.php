@@ -35,11 +35,12 @@ class CSetting
 
     // CSetting.php  
 // CSetting.php — change these two bridge declarations
-public ?array $cur = [];
-public ?array $qs  = [];
+    public ?array $cur = [];
+    public ?array $qs = [];
 
     public static $_profile;
     public static $_usrInfo;
+    public static $uinfo;
     public static $LoggedIn;
 
 
@@ -52,10 +53,11 @@ public ?array $qs  = [];
     public function __construct()
     {
         $this->data = [
-            '_usrinfo'   => [],   // user info
-            'cur'   => [],   // current route / dispatch info
-            'qs'    => [],   // current query-string parameters
-            'auth'  => [],   // authenticated user snapshot
+            '_usrinfo' => [],   // user info (old)
+            'uinfo' => [],   // user info, use this going forward
+            'cur' => [],   // current route / dispatch info
+            'qs' => [],   // current query-string parameters
+            'auth' => [],   // authenticated user snapshot
             'flash' => [],   // one-time flash messages
         ];
     }
@@ -79,7 +81,7 @@ public ?array $qs  = [];
 
         // Dot-notation traversal
         $segments = explode('.', $key);
-        $value    = $this->data;
+        $value = $this->data;
 
         foreach ($segments as $segment) {
             if (!is_array($value) || !array_key_exists($segment, $value)) {
@@ -98,7 +100,7 @@ public ?array $qs  = [];
     public function set(string $key, mixed $value): void
     {
         $segments = explode('.', $key);
-        $target   = &$this->data;
+        $target = &$this->data;
 
         foreach ($segments as $segment) {
             if (!isset($target[$segment]) || !is_array($target[$segment])) {
@@ -139,12 +141,24 @@ public ?array $qs  = [];
     // ------------------------------------------------------------------
 
     /** Read/write the current-route bucket as a whole. */
-    public function getCur(): array  { return $this->data['cur']  ?? []; }
-    public function setCur(array $v): void { $this->data['cur'] = $v; }
+    public function getCur(): array
+    {
+        return $this->data['cur'] ?? [];
+    }
+    public function setCur(array $v): void
+    {
+        $this->data['cur'] = $v;
+    }
 
     /** Read/write the query-string bucket as a whole. */
-    public function getQs(): array   { return $this->data['qs']   ?? []; }
-    public function setQs(array $v): void  { $this->data['qs']  = $v; }
+    public function getQs(): array
+    {
+        return $this->data['qs'] ?? [];
+    }
+    public function setQs(array $v): void
+    {
+        $this->data['qs'] = $v;
+    }
 
     // ------------------------------------------------------------------
     // Flash message helpers
@@ -164,8 +178,8 @@ public ?array $qs  = [];
      */
     public function pullFlash(): array
     {
-        $messages             = $this->data['flash'] ?? [];
-        $this->data['flash']  = [];
+        $messages = $this->data['flash'] ?? [];
+        $this->data['flash'] = [];
         return $messages;
     }
 }

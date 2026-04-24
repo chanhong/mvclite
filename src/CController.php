@@ -12,8 +12,8 @@ class CController extends Ccore
     public $vendorFolder;
     public $publicFolder;
     public $_layoutFolder;
-    protected $styleless    = [];    
-//    public $viewPath;
+    protected $styleless = [];
+    //    public $viewPath;
 //    public $layoutsPath;
 
 
@@ -23,18 +23,26 @@ class CController extends Ccore
         $this->layout = $this->cfg->get('info.layout'); //set default template file
         $this->_appFolder = $this->cfg->get('folder.app');
         $this->_viewFolder = $this->cfg->get('folder.view');
-        $this->_widgetFolder =$this->cfg->get('folder.widget');
+        $this->_widgetFolder = $this->cfg->get('folder.widget');
         $this->vendorFolder = $this->cfg->get('folder.vendor');
         $this->publicFolder = $this->cfg->get('folder.public');
         $this->_layoutFolder = $this->cfg->get('folder.layout');
-        
+
         $this->cfg->path['view'] = $this->_appFolder . DS . $this->_viewFolder;
         $this->cfg->path['layout'] = $this->_appFolder . DS . $this->_layoutFolder;
         $this->stg->cur['qs'] = CUtil::qsValue(); // current query string
         $this->stg->qs = CUtil::qsValue(); // current query string
 //        print CDebug::debug($this->cfg->_cfg['db']);
 
-        $conn = $this->db->dbConnect( $this->cfg->get('db.dsn'),  $this->cfg->get('db.username'),  $this->cfg->get('db.password'));
+        $conn = $this->db->dbConnect($this->cfg->get('db.dsn'), $this->cfg->get('db.username'), $this->cfg->get('db.password'));
+    }
+
+    public function selfVsStatic($clsName = self::class, $who = "")
+    {
+        pln($clsName, 'who: [$who]'); // depend on caller $clsName or default to self
+// old static to object self (always CController) static::class (whoever call such as Authors)
+        pln(self::class, 'self'); // always MvcLite\CController
+        pln(static::class, 'static');             // MvcLite\Authors when Authors calls it
     }
 
     function winUser()
@@ -48,7 +56,7 @@ class CController extends Ccore
         return strtolower(get_class($className));
     }
 
-    function Add2SessVar($iVar, $msg)
+    function Add2SessVar($iVar, $msg) // self:: in controller class/sub is fine, outsie will trigger depreciated warning
     {
         if ($iVar != "" && $msg != "") {
             if ($_SESSION[$iVar] != null || $_SESSION[$iVar] != "") {
@@ -160,7 +168,7 @@ class CController extends Ccore
     {
 
         (empty($layout)) ? $oLayout = $this->layout : $oLayout = $layout;
-//        $layoutFile = DOCROOT . DS . $this->layoutsPath . DS . $oLayout . '.' . $this->view_ext;
+        //        $layoutFile = DOCROOT . DS . $this->layoutsPath . DS . $oLayout . '.' . $this->view_ext;
         $layoutFile = DOCROOT . DS . $this->cfg->path['layout'] . DS . $oLayout . '.' . $this->view_ext;
         //                    print_r($layoutFile);
         (file_exists($layoutFile)) ? $ret = $layoutFile : $ret = "";
@@ -208,9 +216,9 @@ class CController extends Ccore
         $cvFile = DOCROOT . DS . $this->cfg->path['view'] . DS . $class . DS . $this->_widgetFolder . DS . $fileName;
         (!empty($class) and (file_exists($cvFile)))
             ? $vFile = $cvFile
-//            : $vFile = DOCROOT . DS . $this->layoutsPath . DS . $this->_widgetFolder . DS . $fileName;
+            //            : $vFile = DOCROOT . DS . $this->layoutsPath . DS . $this->_widgetFolder . DS . $fileName;
             : $vFile = DOCROOT . DS . $this->cfg->path['layout'] . DS . $this->_widgetFolder . DS . $fileName;
-        permDbg($vFile, 'widget');
+        //        permDbg($vFile, 'widget'); // work
         (file_exists($vFile)) ? $return = $this->captureContent($vFile) : $return = "";
         return $return;
     }
@@ -301,6 +309,9 @@ class CController extends Ccore
     public function doAction($args = false, $iClassName = self::class)
     {
 
+        // DI: was self::doAction(... self::class) — self::class always resolves to CController,
+//     static::class resolves to the actual child class at runtime (e.g. Authors, Front, etc.)
+
         $ret = "";
         $app = strtolower($args['t']);
         $action = strtolower($args['a']);
@@ -338,7 +349,7 @@ class CController extends Ccore
     public static function isController($className)
     {
 
-//            pln($this->cfg->get('cfg'));
+        //            pln($this->cfg->get('cfg'));
         if (
             !empty($className)
             and !empty(CConfig::$_cfg['controllers'])
@@ -348,7 +359,8 @@ class CController extends Ccore
         }
     }
 
-    public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
+    // bef DI   public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
+    public function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     {
         $shortName = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
         $args = CUtil::parseQs($routes, $shortName);
@@ -369,13 +381,13 @@ class CController extends Ccore
                 ) {
                     CUtil::debug("rt: $className-$action");
                     $ctl->start($args); // WORK good t & good a
-                } 
+                }
                 // WORK, router? good t= but bad a=, MUST redirect multiple place to avoid mofified header warning
                 else {
-//                    print " good t= bad a= cn: $className a: $action" . ", args: " . print_r($args, true);
+                    //                    print " good t= bad a= cn: $className a: $action" . ", args: " . print_r($args, true);
                     CUtil::debug("Custom 404: $className-$action");
-// $this->cfg->get('routes'); // DI??
-                    self::redirect2Url("?" . CConfig::$_cfg['routes']['page404']);
+                    // $this->cfg->get('routes.page404'); // DI??
+                    $this->redirect2Url("?" . CConfig::$_cfg['routes']['page404']);
                 }
                 break;
             // WORK, router? BAD t=,  good action, reditrect?   
@@ -389,10 +401,11 @@ class CController extends Ccore
             default:
                 if ($rCtl->isAppView(CConfig::$_cfg['routes']['page404'], $shortName)) {
                     CUtil::debug("Custom 404: $className-$action");
-                    self::redirect2Url("?" . CConfig::$_cfg['routes']['page404']); // WORK, bad t, good a and router page404 exist
+                    $this->redirect2Url("?" . CConfig::$_cfg['routes']['page404']); // WORK, bad t, good a and router page404 exist
                 } else {
                     CUtil::debug("Internal 404: $className-$action");
-                    gI404("$className-$action"); // internal 404
+                    //                    gI404("$className-$action"); // internal 404
+                    $this->i404("$className-$action"); // internal 404
                 }
         }
     }
@@ -428,6 +441,19 @@ class CController extends Ccore
         return $this->renderAppView(self::$_action);
     }
 
+    public function i404($page = "i404")
+    {
+        $i404 =
+            '<div style="height:auto; min-height:100%; "><div style="text-align: center; width:800px; margin-left: -400px; position:absolute; top: 30%; left:50%;">'
+            . '<h1 style="margin:0; font-size:150px; line-height:150px; font-weight:bold;">404</h1>'
+            . '<h2 style="margin-top:20px;font-size: 30px;">Not Found - [' . $page . ']</h2>'
+            . '<p>The resource requested could not be found on this server! or create your custom 404.php</p></div></div>';
 
+        print '<!DOCTYPE html><html style="height:100%"><head></head>'
+            . '<title>404 Not Found</title><style>@media (prefers-color-scheme:dark){body{background-color:#000!important}}</style></head>'
+            . '<body style="color: #444; margin:0;font: normal 14px/20px Arial, Helvetica, sans-serif; height:100%; background-color: #fff;">'
+            . $i404
+            . '</body></html>';
+    }
 
 }
