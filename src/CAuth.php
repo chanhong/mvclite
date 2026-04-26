@@ -2,13 +2,14 @@
 
 namespace MvcLite;
 
-class CAuth {
+class CAuth
+{
 
     const DOMAIN = "MVCLite";
     const ONEMONTH = 2592000;
-      
-//    public static $_usrInfo;
-    
+
+    //    public static $_usrInfo;
+
     private static $me;
     private static $salt;
     private $loggedIn;
@@ -18,14 +19,15 @@ class CAuth {
     public $expiryDate;
     public $ut;
 
-// to be removed    
+    // to be removed    
     public $id;
     public $username;
     public $user;
-    
-    
-    public function __construct() {
-        
+    public $needsRehash = false;
+
+    public function __construct()
+    {
+
         $this->ut = new CUtil;
         $this->nid = null;
         $this->loggedIn = false;
@@ -38,8 +40,9 @@ class CAuth {
     }
 
     // Get Singleton object
-    public static function getAuth($salt="") {
-        
+    public static function getAuth($salt = "")
+    {
+
         if (is_null(self::$me)) {
             if (empty($salt)) {
                 srand(time());
@@ -52,23 +55,26 @@ class CAuth {
         return self::$me;
     }
 
-    public function init() {
+    public function init()
+    {
 
         $this->setInitCookie();
         $this->loggedIn = $this->attemptCookieLogin();
     }
 
-     /* 
+    /* 
      * utilize debug default to br
      * @param $ivar $istr $iformat  
      * @return string 
-     */ 
-    public static function pln($iVar, $iStr = "", $iFormat = "br") {
-    
+     */
+    public static function pln($iVar, $iStr = "", $iFormat = "br")
+    {
+
         print CUtil::debug($iVar, $iStr, $iFormat);
     }
-    
-    public function winUser() {
+
+    public function winUser()
+    {
 
         $winId = "";
         // get Windows User ID without domain name
@@ -80,20 +86,56 @@ class CAuth {
         return $winId; // get Windows User ID without domain name
     }
 
-    public function login($validate, $user) {
-        
+    public function login($validate, $user)
+    {
+
+        $status = false;
+        $needsRehash = false;
+
+        if (!empty($user['username']) and !empty($validate)) {
+            if (!empty($user['password'])) {
+                // MD5 hash is always 32 chars; bcrypt is 60
+                if (strlen($user['password']) === 32) {
+                    // Old MD5 password
+                    if ($user['password'] == $this->md5Hash($validate, $user['nid'])) {  // <-- FIX: add $user['nid']
+                        $status = true;
+                        $needsRehash = true;
+                    }
+                } else {
+                    // New bcrypt hash
+                    if (password_verify($validate, $user['password'])) {
+                        $status = true;
+                    }
+                }
+            } elseif (!empty($user['winuser']) and $user['winuser'] == $validate) {
+                $status = true;
+            }
+
+            if ($status === true) {
+                $this->profile = $user;
+                $this->loggedIn = $status;
+                $this->needsRehash = $needsRehash;
+                $this->generateBCCookies();
+            }
+        }
+        return $status;
+    }
+    public function old_md5_login($validate, $user)
+    {
+
         $status = false;
         // if login via form or win login
         if (!empty($user['username']) and !empty($validate)) {
-            if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
-// hashpassword??
-            // gemini change          if (!empty($user['password']) and password_verify($validate, $user['password'])) {                
+            //            if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
+// hashpassword??, migrated away from md5
+            if (!empty($user['password']) and password_verify($validate, $user['password'])) {
                 $status = true;
-            } elseif (!empty($user['winuser']) and $user['winuser'] == $validate ) {
+            } elseif (!empty($user['winuser']) and $user['winuser'] == $validate) {
                 $status = true;
             }
-            if ($status = true) {
-// gemini change            if ($status === true) {                
+            //            if ($status = true) {
+// gemini change            
+            if ($status === true) {
                 $this->profile = $user;
                 $this->loggedIn = $status;
                 $this->generateBCCookies();
@@ -102,23 +144,26 @@ class CAuth {
         return $status;
     }
 
-    public function logout() {
-        
+    public function logout()
+    {
+
         $this->loggedIn = false;
         unset($_SESSION['uinfo']);
         unset($_SESSION['loggedin']);
-//        session_unset();         
+        //        session_unset();         
         $this->clearCookies();
     }
 
-    public function loggedIn() {
-        
+    public function loggedIn()
+    {
+
         return $this->loggedIn;
     }
 
 
-    public static function generateStrongPassword($length = 9, $add_dashes = false, $available_sets = 'luds') {
-        
+    public static function generateStrongPassword($length = 9, $add_dashes = false, $available_sets = 'luds')
+    {
+
         $sets = array();
         if (strpos($available_sets, 'l') !== false)
             $sets[] = 'abcdefghjkmnpqrstuvwxyz';
@@ -155,7 +200,8 @@ class CAuth {
         return $dash_str;
     }
 
-    private function setInitCookie() {
+    private function setInitCookie()
+    {
 
         if (!isset($_COOKIE['A'])) {
             srand(time());
@@ -164,8 +210,9 @@ class CAuth {
         }
     }
 
-    private function generateBCCookies() {
-        
+    private function generateBCCookies()
+    {
+
         $c = '';
         $c .= 'n=' . base64_encode($this->profile['nid']) . '&';
         $c .= 'l=' . str_rot13($this->profile['username']) . '&';
@@ -180,41 +227,48 @@ class CAuth {
         setcookie('B', $b, $this->expiryDate, '/', self::DOMAIN);
         setcookie('C', $c, $this->expiryDate, '/', self::DOMAIN);
         // domain to null to match md5hash()
-        setcookie('id_hash', $this->md5Hash($this->profile['username']), $this->expiryDate, '/', '', 0);         
+        setcookie('id_hash', $this->md5Hash($this->profile['username']), $this->expiryDate, '/', '', 0);
     }
 
-    private function clearCookies() {
+    private function clearCookies()
+    {
 
         setcookie('B', '', time() - 3600, '/', self::DOMAIN);
         setcookie('C', '', time() - 3600, '/', self::DOMAIN);
     }
 
-    public function md5HashNoSalt($hash, $p1 = "", $p2 = "") {
+    public function md5HashNoSalt($hash, $p1 = "", $p2 = "")
+    {
 
         return md5($hash . self::$salt . strtolower($p1) . strtolower($p2));
     }
 
-    public function md5Hash($hash, $salt="", $p1 = "", $p2 = "") {
+    public function md5Hash($hash, $salt = "", $p1 = "", $p2 = "")
+    {
 
-        if (empty($hash)) return;
+        if (empty($hash))
+            return;
         // if no salt passed, use Auth static salt
         if (empty($salt)) {
             $salt = self::$salt;
-        } 
+        }
         return md5($hash . $salt . strtolower($p1) . strtolower($p2));
     }
-// gemini change??
-    public function hashPassword($password) {
+    // gemini change??
+    public function hashPassword($password)
+    {
         return password_hash($password, PASSWORD_DEFAULT);
     }
 
-    public static function newNid() {
+    public static function newNid()
+    {
 
         srand(time());
         return md5(rand() . microtime());
     }
 
-    private function attemptCookieLogin() {
+    private function attemptCookieLogin()
+    {
 
         if (!isset($_COOKIE['A']) || !isset($_COOKIE['B']) || !isset($_COOKIE['C']))
             return false;
@@ -250,22 +304,26 @@ class CAuth {
     }
 
     // from custom, check it out
-    public function requireUser($rUrl = "") {
+    public function requireUser($rUrl = "")
+    {
         if (!$this->loggedIn())
             $this->sendToLoginPage($rUrl);
     }
 
-    public function requireAdmin($rUrl = "") {
+    public function requireAdmin($rUrl = "")
+    {
         if (!$this->loggedIn() || !$this->isAdmin())
             $this->sendToLoginPage($rUrl);
     }
 
-    public function isAdmin() {
+    public function isAdmin()
+    {
         return ($this->user->level === 'admin');
     }
 
-    public function changeCurrentUsername($new_username) {
-       
+    public function changeCurrentUsername($new_username)
+    {
+
         srand(time());
         $this->user->nid = Auth::newNid();
         $this->nid = $this->user->nid;
@@ -275,7 +333,8 @@ class CAuth {
         $this->generateBCCookies();
     }
 
-    public function impersonateUser($id_or_username) {
+    public function impersonateUser($id_or_username)
+    {
         if (ctype_digit($id_or_username))
             $u = new User($id_or_username);
         else {
@@ -294,9 +353,10 @@ class CAuth {
 
         return true;
     }
-    
-    public function changeCurrentPassword($new_password) {
-        
+
+    public function changeCurrentPassword($new_password)
+    {
+
         srand(time());
         $this->user->nid = self::newNid();
         $this->user->password = self::hashedPassword($new_password);
@@ -305,7 +365,8 @@ class CAuth {
         $this->generateBCCookies();
     }
 
-    public static function changeUsername($id_or_username, $new_username) {
+    public static function changeUsername($id_or_username, $new_username)
+    {
         if (ctype_digit($id_or_username))
             $u = new User($id_or_username);
         else {
@@ -319,7 +380,8 @@ class CAuth {
         }
     }
 
-    public static function changePassword($id_or_username, $new_password) {
+    public static function changePassword($id_or_username, $new_password)
+    {
         if (ctype_digit($id_or_username))
             $u = new User($id_or_username);
         else {
@@ -332,7 +394,7 @@ class CAuth {
             $u->password = self::hashedPassword($new_password);
             $u->update();
         }
-    }  
-    
-    
+    }
+
+
 }

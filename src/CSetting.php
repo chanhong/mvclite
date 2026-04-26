@@ -53,8 +53,8 @@ class CSetting
     public function __construct()
     {
         $this->data = [
-            '_usrinfo' => [],   // user info
-            'uinfo' => [],   // user info
+            '_usrinfo' => [],   // user info (old)
+            'uinfo' => [],   // user info, use this going forward
             'cur' => [],   // current route / dispatch info
             'qs' => [],   // current query-string parameters
             'auth' => [],   // authenticated user snapshot

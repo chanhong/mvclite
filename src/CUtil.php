@@ -18,11 +18,11 @@ class CUtil
 
     public static function debug($iVar, $iStr = "", $iFormat = "")
     {
-                return CDebug::debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
+        return CDebug::debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
     public static function _debug($iVar, $iStr = "", $iFormat = "")
     {
-                return CDebug::_debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
+        return CDebug::_debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
 
     public static function cutil_debug($iVar, $iStr = "", $iFormat = "")
@@ -251,15 +251,19 @@ class CUtil
                 break;
             case "email":
                 $ret = filter_var($str, FILTER_SANITIZE_EMAIL);
-                $ret = @filter_var($ret, FILTER_SANITIZE_STRING); // try to catch single quote
+// FILTER_SANITIZE_STRING deprecated starting 8.1
+                //                $ret = @filter_var($ret, FILTER_SANITIZE_STRING); // try to catch single quote
+                $ret = htmlspecialchars(strip_tags(trim($ret)), ENT_QUOTES, 'UTF-8');
                 break;
             case "num":
                 $ret = filter_var($str, FILTER_SANITIZE_NUMBER_INT);
                 break;
             case "txt":
-                $ret = @filter_var($str, FILTER_SANITIZE_STRING);
-                $ret = self::escapeStr($ret); // strip out none ascii chars
-// gemini change, review later                $ret = self::escapeStr(htmlspecialchars($str, ENT_QUOTES, 'UTF-8'));
+                // FILTER_SANITIZE_STRING deprecated starting 8.1
+//                $ret = @filter_var($str, FILTER_SANITIZE_STRING);
+                $ret = htmlspecialchars(strip_tags(trim($str)), ENT_QUOTES, 'UTF-8');
+                //                $ret = self::escapeStr($ret); // strip out none ascii chars
+                $ret = self::escapeStr(htmlspecialchars($ret, ENT_QUOTES, 'UTF-8'));
                 break;
             case "amt":
                 $patterns = array('/[^0-9.]/');
@@ -905,7 +909,7 @@ class CUtil
             // Simulate CUtils.s2nv(',', CUtils.getAppTxt(avar))
             $appsTxt = getAppTxt($avar); // Should return a text string (CSV)
             $gArray = s2nv(',', $appsTxt);
-// $this->cfg->get('debug.logs]') = []; // DI?? how to call cfg vis this??
+            // $this->cfg->get('debug.logs]') = []; // DI?? how to call cfg vis this??
         } elseif (isset(CConfig::$_cfg[$avar])) {
             $gArray = CConfig::$_cfg[$avar]; // associative array
         }
@@ -943,24 +947,25 @@ class CUtil
         return $result;
     }
 
-// Get application text for session/global use (like for messages)
+    // Get application text for session/global use (like for messages)
 // $fb is the key, defaulting to 'fbdmsg'
 // $lower if not empty will convert to lowercase
-function getAppTxt($fb = "fbdmsg", $lower = "") {
-    // Assuming you're using $_SESSION or some global array in place of HttpContext.Current.Application
-    // In PHP, a typical equivalent would be an array holding application-level variables (like $_SESSION, or a custom array)
+    function getAppTxt($fb = "fbdmsg", $lower = "")
+    {
+        // Assuming you're using $_SESSION or some global array in place of HttpContext.Current.Application
+        // In PHP, a typical equivalent would be an array holding application-level variables (like $_SESSION, or a custom array)
 
-    // You'll have to define getSafeVar($applicationArray, $key, $flag) accordingly.
-    // For this example, let's assume $applicationArray is $_SESSION.
-    $ret = self::getSafeVar($_SESSION, $fb, "raw");
+        // You'll have to define getSafeVar($applicationArray, $key, $flag) accordingly.
+        // For this example, let's assume $applicationArray is $_SESSION.
+        $ret = self::getSafeVar($_SESSION, $fb, "raw");
 
-    if (!empty($lower)) {
-        $ret = strtolower($ret);
+        if (!empty($lower)) {
+            $ret = strtolower($ret);
+        }
+        return $ret;
     }
-    return $ret;
-}
 
- 
+
 }
 
 
