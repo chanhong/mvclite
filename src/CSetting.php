@@ -7,13 +7,20 @@
  * string, active controller/action, authenticated user, etc.) as opposed to
  * the static configuration that lives in CConfig.
  *
- * Supports the same dot-notation API as CConfig so call-sites are consistent:
+ * INSTANCE usage (DI / new code):
+ *   $stg->_get('cur.ctrl');
+ *   $stg->_set('cur.ctrl', 'front');
+ *   $stg->_has('auth.user');
  *
- *   $stg->set('cur.ctrl',   'front');
- *   $stg->set('cur.action', 'index');
- *   $stg->get('cur.ctrl');              // 'front'
- *   $stg->get('qs.page',  1);           // query-string param with default
- *   $stg->has('auth.user');             // bool
+ * STATIC / FACADE usage (boot-time or legacy static code):
+ *   CSetting::get('cur.ctrl');   // works before AND after DI is ready
+ *   CSetting::set('cur.action', 'index');
+ *   CSetting::has('auth.user');
+ *
+ * The facade delegates to the instance once setInstance() is called
+ * (after DI container is built in index.php).  Before that it falls
+ * back to the static $_stg bridge array, so boot-time code works
+ * without any changes.
  *
  * @author chanhong
  */
@@ -32,18 +39,81 @@ class CSetting
     //   auth — authenticated user info
     //   flash— one-time flash messages
     // ------------------------------------------------------------------
-
-    // CSetting.php  
-// CSetting.php — change these two bridge declarations
     public ?array $cur = [];
     public ?array $qs = [];
-
 
     public static $_profile;
     public static $_usrInfo;
     public static $uinfo;
     public static $LoggedIn;
 
+    // ------------------------------------------------------------------
+    // Facade — holds the singleton instance once DI is ready
+    // ------------------------------------------------------------------
+    private static ?self $instance = null;
+
+    /**
+     * Call once in index.php after initDI():
+     *   CSetting::setInstance($container->make('stg'));
+     */
+    public static function setInstance(self $stg): void
+    {
+        static::$instance = $stg;
+    }
+
+    // ------------------------------------------------------------------
+    // Static facade — get/set/has work at any point in the boot sequence
+    // ------------------------------------------------------------------
+
+    public static function get(string $key, mixed $default = null): mixed
+    {
+        if (static::$instance !== null) {
+            return static::$instance->_get($key, $default);
+        }
+        // Pre-DI fallback: read from static bridge
+        $segments = explode('.', $key);
+        $value = static::$_stg;
+        foreach ($segments as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return $default;
+            }
+            $value = $value[$segment];
+        }
+        return $value;
+    }
+
+    public static function set(string $key, mixed $value): void
+    {
+        if (static::$instance !== null) {
+            static::$instance->_set($key, $value);
+            return;
+        }
+        // Pre-DI fallback: write to static bridge
+        $segments = explode('.', $key);
+        $target = &static::$_stg;
+        foreach ($segments as $segment) {
+            if (!isset($target[$segment]) || !is_array($target[$segment])) {
+                $target[$segment] = [];
+            }
+            $target = &$target[$segment];
+        }
+        $target = $value;
+    }
+
+    public static function has(string $key): bool
+    {
+        if (static::$instance !== null) {
+            return static::$instance->_has($key);
+        }
+        return static::get($key) !== null;
+    }
+
+    // ------------------------------------------------------------------
+    // Static bridge — kept ONLY for legacy code that reads CSetting::$_stg
+    // directly, and as the pre-DI fallback store for the facade above.
+    // Remove once all call-sites are migrated.
+    // ------------------------------------------------------------------
+    public static array $_stg = [];
 
     protected array $data = [];
 
@@ -51,7 +121,7 @@ class CSetting
     // Construction
     // ------------------------------------------------------------------
 
-    public function __construct()
+    public function __construct(array $stgArray = [])
     {
         $this->data = [
             '_usrinfo' => [],   // user info (old)
@@ -61,10 +131,15 @@ class CSetting
             'auth' => [],   // authenticated user snapshot
             'flash' => [],   // one-time flash messages
         ];
+
+        if (!empty($stgArray)) {
+            $this->data = array_merge($this->data, $stgArray);
+        }
     }
 
     // ------------------------------------------------------------------
-    // Core read / write  (mirrors CConfig API)
+    // Instance read / write  (prefixed with _ to avoid collision with
+    // the static facade methods above)
     // ------------------------------------------------------------------
 
     /**
@@ -73,7 +148,7 @@ class CSetting
      * @param string $key     e.g. 'cur.ctrl' or a plain top-level key
      * @param mixed  $default Returned when the key does not exist
      */
-    public function get(string $key, mixed $default = null): mixed
+    public function _get(string $key, mixed $default = null): mixed
     {
         // Fast path — exact top-level key
         if (array_key_exists($key, $this->data)) {
@@ -98,7 +173,7 @@ class CSetting
      * Store a value using dot-notation.
      * Intermediate arrays are created automatically.
      */
-    public function set(string $key, mixed $value): void
+    public function _set(string $key, mixed $value): void
     {
         $segments = explode('.', $key);
         $target = &$this->data;
@@ -116,9 +191,9 @@ class CSetting
     /**
      * Check whether a dot-notation key exists (and is not null).
      */
-    public function has(string $key): bool
+    public function _has(string $key): bool
     {
-        return $this->get($key) !== null;
+        return $this->_get($key) !== null;
     }
 
     // ------------------------------------------------------------------
