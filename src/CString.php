@@ -80,7 +80,7 @@ class CString extends CCore
             {
                 $spos = $spos + mb_strlen($iNeedle, "UTF-8"); // skip the needle 
                 $ret = mb_substr($istr, $spos, null, "UTF-8"); // get substr right of char
-                // CMsg::_pdmsg("rt:".$spos);
+                // CMsg::_msg("rt:".$spos);
             }
         }
         return $ret;
@@ -101,7 +101,7 @@ class CString extends CCore
             if ($spos !== false) // if found
             {
                 $ret = mb_substr($istr, 0, $spos, "UTF-8"); // get substr left of char
-                // CMsg::_pdmsg("lt:".$spos);
+                // CMsg::_msg("lt:".$spos);
             }
         }
         return $ret;

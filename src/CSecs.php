@@ -23,11 +23,11 @@ class CSecs extends CCore
     public static function IsWebloginAllowed()
     {
         $ret = false;
-        $webloginList = self::getAppTxt("weblogin", "L");
-        // CMsg::_pdmsg($webloginList, "web");
+        $webloginList = CSetting::get("weblogin");
+        // CMsg::_msg($webloginList, "web");
         $usrname = self::winUser();
-        if (CUtil::isEqInList($usrname, $webloginList, '|') == true || self::getAppTxt("logintype", "L") == "web") {
-            // CMsg::_pdmsg($usrname, "webusr");
+        if (CUtil::isEqInList($usrname, $webloginList, '|') == true || CSetting::get("logintype") == "web") {
+            // CMsg::_msg($usrname, "webusr");
             $ret = true; // is winuser also allow weblogin
         }
         return $ret;
@@ -43,11 +43,11 @@ class CSecs extends CCore
         $usrname = self::winUser();
         $usrgrp = self::getUserGroup($usrname);
 
-        CMsg::_pdmsg($usrname . "-" . $usrgrp, "isIntrgUser");
-        // CMsg::_pdmsg(static::$_usr, "_usr");
+        //        CMsg::_msg($usrname . "-" . $usrgrp, "isIntrgUser");
+        // CMsg::_msg(static::$_usr, "_usr");
 
         if ($usrname != "" && $usrgrp != null && strlen($usrgrp) > 0) {
-            CMsg::_pdmsg(static::$_usr, "isIntrgUser");
+            //            CMsg::_msg(static::$_usr, "isIntrgUser");
             $ret = true;
         }
         return $ret;
@@ -60,7 +60,7 @@ class CSecs extends CCore
     public static function IsNotAuthorized()
     {
         $ret = false;
-        CMsg::_pdmsg(static::$_usr, "IsNotAuthorized");
+        CMsg::_msg(static::$_usr, "IsNotAuthorized");
         if (self::IsWebloginAllowed() == false && self::isIntrgUser() == false) {
             $ret = true;
         }
@@ -74,7 +74,7 @@ class CSecs extends CCore
     public static function IsAuthorized()
     {
         $ret = false;
-        CMsg::_pdmsg(static::$_usr, "IsAuthorized");
+        CMsg::_msg(static::$_usr, "IsAuthorized");
         if (self::IsWebloginAllowed() == true || self::isIntrgUser() == true) {
             $ret = true;
         }
@@ -92,14 +92,29 @@ class CSecs extends CCore
         return $ret;
     }
 
+    public static function winUser()
+    {
+
+        $winId = "";
+        // get Windows User ID without domain name
+//        $wUser = strtolower(HttpContext::Current()->User()->Identity()->Name()); // get AMC\userid
+        if (!empty($_SERVER['LOGON_USER'])) {
+            $winUser = explode("\\", $_SERVER['LOGON_USER']);
+            array_shift($winUser);
+            list($winId) = $winUser;
+            $winId = (CString::IsEmpty($winId)) ? self::uwNetID($_SERVER['LOGON_USER']) : $winId; // if NOT AMC then get the email from string
+
+        }
+        return $winId; // get Windows User ID without domain name
+    }
     /**
      * Gets Windows User or NetID
      * @return string
      */
-    public static function winUser()
+    public static function cs_winUser()
     {
         $wUser = strtolower(HttpContext::Current()->User()->Identity()->Name()); // get AMC\userid
-        // bad? crash in isDebug() CMsg::_pdmsg($wUser, "wUser-b");
+        // bad? crash in isDebug() CMsg::_msg($wUser, "wUser-b");
         $ret = CString::subStrRt($wUser, "\\"); // AMC\userid or netid@washington.edu if using Shibboleth
         $ret = (CString::IsEmpty($ret)) ? self::uwNetID($wUser) : $ret; // if NOT AMC then get the email from string
         return $ret;
@@ -183,23 +198,24 @@ class CSecs extends CCore
                         $wusr = self::winUser();
                         if ($s != "") {
                             $usr = ($s == "*") ? $wusr : $s;
-                            // CMsg::_pdmsg($usr . ":" . $grp, "u:g");
-                            // CMsg::_pdmsg($infoa[$usr], "infoa");
+                            // CMsg::_msg($usr . ":" . $grp, "u:g");
+                            // CMsg::_msg($infoa[$usr], "infoa");
 
-                            if ((!isset($infoa[$usr]) || $infoa[$usr] != $grp) // add group if not exist or greater
+                            if (
+                                (!isset($infoa[$usr]) || $infoa[$usr] != $grp) // add group if not exist or greater
                                 && self::getGroupNo($grp) >= self::getGroupNo(isset($infoa[$usr]) ? $infoa[$usr] : null) // if usr has more than one group take the higher group
                             ) {
                                 $infoa[$usr] = $grp; // add user highest group info
                                 /*
-                                CMsg::_pdmsg($usr+":"+$grp, "u:g");
-                                CMsg::_pdmsg($infoa[$usr], "infoa[usr]");
+                                CMsg::_msg($usr+":"+$grp, "u:g");
+                                CMsg::_msg($infoa[$usr], "infoa[usr]");
                                 */
                             }
                         }
                     }
                 }
                 // user should only has one highest group
-                // CMsg::_pdmsg($infoa, "gInfoa");
+                // CMsg::_msg($infoa, "gInfoa");
             }
         }
         return $infoa;
@@ -220,9 +236,9 @@ class CSecs extends CCore
             }
             if (isset(static::$_cfg["users"])) {
                 $infoa = static::$_cfg["users"]; // the final users with group
-                // CMsg::_pdmsg($infoa, "getUserGroup"); // the final users with group
+                // CMsg::_msg($infoa, "getUserGroup"); // the final users with group
             } else {
-                CMsg::_pdmsg(static::$_cfg["users"] ?? null, "getUserGroup-else"); // the final users with group
+                CMsg::_msg(static::$_cfg["users"] ?? null, "getUserGroup-else"); // the final users with group
             }
         }
         // need to get the highest group from this??
@@ -233,7 +249,7 @@ class CSecs extends CCore
                 _pln($s);
                 _pln($grp);
                 */
-                CMsg::_pdmsg($s . ":" . $grp, "getUserGroup-u:g");
+                CMsg::_msg($s . ":" . $grp, "getUserGroup-u:g");
             }
         }
         return $grp;
@@ -273,8 +289,11 @@ class CSecs extends CCore
      */
     public static function getGroup($grpname)
     {
-        $pInfoa = self::getGroups();
-        return isset($pInfoa[$grpname]) ? $pInfoa[$grpname] : null;
+//        $pInfoa = self::getGroups();
+        
+        $pInfoa = CSetting::get("groups");
+        //        return isset($pInfoa[$grpname]) ? $pInfoa[$grpname] : null;
+        return ($grpname != null && isset($pInfoa[$grpname])) ? $pInfoa[$grpname] : null;
     }
 
     /**
@@ -284,7 +303,7 @@ class CSecs extends CCore
      */
     public static function getGroupNo($grpname)
     {
-        return (int)(self::getGroup($grpname));
+        return (int) (self::getGroup($grpname));
     }
 
     /**
@@ -292,7 +311,8 @@ class CSecs extends CCore
      */
     public function prtGroups()
     {
-        CMsg::_dprt(self::getGroups(), "ga");
+//        CMsg::_dprt(self::getGroups(), "ga");
+        CMsg::_dprt(CSetting::get("groups"), "ga");
     }
 
     /**
@@ -301,7 +321,7 @@ class CSecs extends CCore
      */
     public static function setUsrsInfo($UsrNv)
     {
-        if (count(static::$_usrs) > 40) {
+        if (isset(static::$_usrs) && count(static::$_usrs) > 40) {
             static::$_usrs = []; // reset
         }
         $UsrInfo = [];
@@ -331,7 +351,7 @@ class CSecs extends CCore
             $UsrNv["appid"] = $app;
             $UsrNv["usrentity"] = $usrentity;
             CMsg::_dmsg($UsrNv, "setUserLoginInfo");
-            if (isset($UsrNv["usrname"]) && CString::IsEmpty((string)$UsrNv["usrname"]) == false) {
+            if (isset($UsrNv["usrname"]) && CString::IsEmpty((string) $UsrNv["usrname"]) == false) {
                 static::$_usr = $UsrNv; // set static _usr
                 self::setUsrsInfo($UsrNv); // for showing in UInfo view
                 $_SESSION["usrname"] = $UsrNv["usrname"];
@@ -354,7 +374,8 @@ class CSecs extends CCore
         $usrInfoText = "";
         static::$_usr = CUtil::getSessNv("uinfo"); // use session instead
         CMsg::_dmsg(static::$_usr, "setUsrInfoText");
-        if (is_array(static::$_usr)
+        if (
+            is_array(static::$_usr)
             && !empty(static::$_usr["usrname"])
             && !empty(static::$_usr["usrgroup"])
             && !empty(static::$_usr["usrgrpno"])
@@ -402,27 +423,28 @@ class CSecs extends CCore
      * Converts login info to list item HTML
      * @return string
      */
-    public static function loginInfo2Li()
+    public static function loginInfo2Li($loginUrl)
     {
         $loggedIn = "";
         $Link = array_fill(0, 2, null);
         if (self::IntgOrWeb() === true) {
             static::$_usr = CUtil::getSessNv("uinfo"); // use session instead
-            CMsg::_pdmsg(static::$_usr, "loginInfo2Li");
+//            CMsg::_msg(static::$_usr, "loginInfo2Li");
 
             if (static::$_usr != null && !CString::IsEmpty(isset(static::$_usr["loggedin"]) ? static::$_usr["loggedin"] : null)) { // need to change this to session
                 $loggedIn = static::$_usr["loggedin"];
             }
             if (CString::IsEmpty($loggedIn) == false) {
                 $Link[0] = "Logout";
-                $Link[1] = CUtil::tap(self::getAppTxt("urllogout"));
+                $Link[1] = CUtil::tap(CSetting::get(("urllogout")));
             } else {
                 $Link[0] = "Login";
-                $Link[1] = CUtil::tap(self::getAppTxt("urllogin"));
+                //                $Link[1] = CUtil::tap(CSetting::get(("urllogin"));
+                $Link[1] = CUtil::tap($loginUrl);
             }
         }
-        CMsg::_pdmsg($loggedIn, "loginInfo2Li");
-        return "</a ></li><li><a href=\"" . $Link[1] . "\">" . $Link[0] . "</a></li>";
+        //        CMsg::_msg($loggedIn, "loginInfo2Li");
+        return "</a></li><li><a href=\"" . $Link[1] . "\">" . $Link[0] . "</a></li>";
     }
 
     /**
@@ -432,7 +454,7 @@ class CSecs extends CCore
     public static function IntgOrWeb()
     {
         $ret = false;
-        if (self::isIntrgUser() == true || self::getAppTxt("logintype", "L") == "web") {
+        if (self::isIntrgUser() == true || CSetting::get("logintype") == "web") {
             $ret = true;
         }
         return $ret;
@@ -451,7 +473,7 @@ class CSecs extends CCore
             $tgrp = CUtil::TaskGroup($task);
             static::$_usr = CUtil::getSessNv("uinfo"); // use session instead
             if (self::IsUsrGrpComp(static::$_usr["usrgroup"] ?? null, $tgrp, ">=") == true) {
-                // CMsg::_pdmsg($tgrp, "IsTaskUsrOk");
+                // CMsg::_msg($tgrp, "IsTaskUsrOk");
                 $allowAccess = true;
             }
         }
@@ -467,6 +489,8 @@ class CSecs extends CCore
     public static function isUsrHasAccess2Mnu($mnua, $mnuType)
     {
         $allowAccess = false;
+        if (!isset($mnua) || $mnua==null ) return $allowAccess; // guard for bad value
+
         $usrname = "";
         static::$_usr = CUtil::getSessNv("uinfo"); // use session instead
 
@@ -478,17 +502,17 @@ class CSecs extends CCore
         $qsa = CUtil::qs2nv();
         if ($qsa != null && count($qsa) > 0) {
             $keys = array_keys($qsa);
-            $sCtl = strtolower((string)$qsa[$keys[0]]);
+            $sCtl = strtolower((string) $qsa[$keys[0]]);
         }
         $mnuUrl = CUtil::qs2nv($mnua[0]); // get the url from menu array
         $mnuKeys = array_keys($mnuUrl);
-        $task = strtolower((string)$mnuUrl[$mnuKeys[0]]);
+        $task = strtolower((string) $mnuUrl[$mnuKeys[0]]);
         if (
             self::IsTaskUsrOk($task, $usrname) == true
             && ($mnuType == $sCtl || $mnuType == CCore::getSelectedViewSet()) // only show menu items and submenu items of the current view
         ) {
-            // CMsg::_pdmsg($task, "mtask");
-            // CMsg::_pdmsg($usrname, "usrname");
+            // CMsg::_msg($task, "mtask");
+            // CMsg::_msg($usrname, "usrname");
 
             $allowAccess = true;
         }
@@ -504,11 +528,12 @@ class CSecs extends CCore
     public static function isPublicAccess4Mnu($mnua, $mnuType)
     {
         $allowAccess = false;
+        if (!isset($mnua) || $mnua==null ) return $allowAccess; // guard for bad value
         $sCtl = "";
         $qsa = CUtil::qs2nv();
         if ($qsa != null && count($qsa) > 0) {
             $keys = array_keys($qsa);
-            $sCtl = strtolower((string)$qsa[$keys[0]]);
+            $sCtl = strtolower((string) $qsa[$keys[0]]);
         }
         $mnuNameReqGrp = CUtil::TaskGroup($sCtl);
         $mnuGrp = CUtil::TaskGroup($mnuType);
@@ -527,13 +552,13 @@ class CSecs extends CCore
         /*
         else
         {
-          CMsg::_pdmsg($mnuNameReqGrp, "mnuNameReqGrp");
-          CMsg::_pdmsg($mUrlGrp, "mUrlGrp-else");
-          CMsg::_pdmsg($mnuUrl, "mnuUrl-lnka");
-          CMsg::_pdmsg($mnuGrp, "mnuGrp");
-          CMsg::_pdmsg($sCtl, "sCtl");
-          CMsg::_pdmsg($selview, "selview");
-          CMsg::_pdmsg($mnuType, "mnuType");
+          CMsg::_msg($mnuNameReqGrp, "mnuNameReqGrp");
+          CMsg::_msg($mUrlGrp, "mUrlGrp-else");
+          CMsg::_msg($mnuUrl, "mnuUrl-lnka");
+          CMsg::_msg($mnuGrp, "mnuGrp");
+          CMsg::_msg($sCtl, "sCtl");
+          CMsg::_msg($selview, "selview");
+          CMsg::_msg($mnuType, "mnuType");
         }
         */
         return $allowAccess;
@@ -591,18 +616,22 @@ class CSecs extends CCore
      */
     public static function setUsersInfo()
     {
+        if (!isset(static::$_cfg))
+            return;
         // set users and uinfo from default
         // static::$_cfg["users"] = static::$_cfg["defusers"];
+//        pln(static::$_cfg,'setUsersInfo');
+//        pln(CCore::$_cfg,'setUsersInfo');
         static::$_cfg["uinfo"] = static::$_cfg["defuinfo"];
 
         $gInfoa = [];
         $infoa = [];
 
         // infoa = static::$_cfg["users"];
-        // CMsg::_pdmsg($infoa, "infoa-b");
+        // CMsg::_msg($infoa, "infoa-b");
         $gInfoa = self::groupsInfo2Users(); // load group info into _cfg users array
 
-        // CMsg::_pdmsg($gInfoa, "gInfoa");
+        // CMsg::_msg($gInfoa, "gInfoa");
 
         if ($gInfoa != null) {
             $infoa = array_merge($infoa, $gInfoa);
@@ -610,7 +639,7 @@ class CSecs extends CCore
         static::$_cfg["users"] = $infoa;
         CCore::IsLoginedUser(); // restore from cookie?, need to think more about this
 
-        // CMsg::_pdmsg($infoa, "setUsersInfo");
+        // CMsg::_msg($infoa, "setUsersInfo");
     }
 
     /**
@@ -622,7 +651,7 @@ class CSecs extends CCore
     {
         $allowAccess = false;
 
-        // CMsg::_pdmsg($usrname, "usrname");
+        // CMsg::_msg($usrname, "usrname");
         if (CString::IsEmpty($usrname) == false) {
             static::$_usr = CUtil::getSessNv("uinfo"); // use session instead
 
@@ -630,8 +659,8 @@ class CSecs extends CCore
             // int iusrgrpno = (int) static::$_usr["usrgrpno"];
             $imnureqgrpno = self::getGroupNo("user");
             /*
-            CMsg::_pdmsg($iusrgrpno, "iusrgrpno");
-            CMsg::_pdmsg($imnureqgrpno, "imnureqgrpno");
+            CMsg::_msg($iusrgrpno, "iusrgrpno");
+            CMsg::_msg($imnureqgrpno, "imnureqgrpno");
             */
             // is usr login, usrgrp above "user" group number
             if ($iusrgrpno > 0 && $iusrgrpno >= $imnureqgrpno) {
@@ -648,40 +677,40 @@ class CSecs extends CCore
      * @param string $opr
      * @return bool
      */
-    public static function IsUsrGrpComp($usrgrp, $grp, $opr = ">")
+    public static function IsUsrGrpComp($usrgrp, $grp, $opr = ">=")
     {
         $allowAccess = false;
         if ((CString::IsEmpty($usrgrp) == false) && CString::IsEmpty($grp) == false) {
             $iusrgrpno = self::getGroupNo($usrgrp);
             $imnureqgrpno = self::getGroupNo($grp);
-            /*
-            CMsg::_pdmsg($iusrgrpno, "iusrgrpno");
-            CMsg::_pdmsg($imnureqgrpno, "imnureqgrpno");
-            */
+            
+//            pln($iusrgrpno, "iusrgrpno");
+//            pln($imnureqgrpno, "imnureqgrpno");
+            
             // is usr login, usrgrp above "user" group number
             if ($iusrgrpno > 0) {
                 switch ($opr) {
                     case ">=":
                         if ($iusrgrpno >= $imnureqgrpno) {
-                            // CMsg::_pdmsg($opr, "opr");
+//            pln($opr, "opr");                            
                             $allowAccess = true;
                         }
                         break;
                     case "<=":
                         if ($iusrgrpno <= $imnureqgrpno) {
-                            // CMsg::_pdmsg($opr, "opr");
+                            // CMsg::_msg($opr, "opr");
                             $allowAccess = true;
                         }
                         break;
                     case "==":
                         if ($iusrgrpno == $imnureqgrpno) {
-                            // CMsg::_pdmsg($opr, "opr");
+                            // CMsg::_msg($opr, "opr");
                             $allowAccess = true;
                         }
                         break;
                     case ">":
                         if ($iusrgrpno > $imnureqgrpno) {
-                            // CMsg::_pdmsg($opr, "opr");
+                            // CMsg::_msg($opr, "opr");
                             $allowAccess = true;
                         }
                         break;

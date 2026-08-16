@@ -32,7 +32,7 @@ class CDebug
     {
         $ret = false;
         if (\_MVCDEBUG == true)
-        //       || CUtil::isEqInList(CSecs::winUser(), self::getAppTxt("weblogin", "L"), '|')) // selective, only allow winuser listed in weblogin to see dmsg
+        //       || CUtil::isEqInList(CSecs::winUser(), CSetting::get(("weblogin", "L"), '|')) // selective, only allow winuser listed in weblogin to see dmsg
         {
             $ret = true;
         }
@@ -61,14 +61,17 @@ class CDebug
 
         (!empty($iStr) and strtolower($iStr) == "dtrace") ? $dTrace = "dtrace" : $dTrace = "";
         (!empty($iStr) and strtolower($iStr) <> "dtrace") ? $preText = "[-" . strtoupper($iStr) . "-] " : $preText = "";
+
         if (!empty($iVar)) {
             if (is_array($iVar) or (is_object($iVar)))
                 $iVar = print_r($iVar, true);
+            
             if (!empty($dTrace))
                 $dTrace = self::dTrace();
             (empty($iFormat)) ? $str = $preText . $iVar : $str = "<pre>" . $preText . $iVar . "</pre>";
         }
         $ret = $str . $dTrace . " ";
+
         //        $ret = print_r($ret, true);                
 
         // Write to file log

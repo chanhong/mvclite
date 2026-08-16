@@ -7,12 +7,20 @@
  * dot-notation access so callers never need to reach into nested arrays
  * directly.
  *
- * Usage:
- *   $cfg->get('info.emailfrom');          // 'email@email.com'
- *   $cfg->get('levels.admin');             // '90'
- *   $cfg->get('missing.key', 'fallback'); // 'fallback'
- *   $cfg->set('info.sitename', 'MvcLite');
- *   $cfg->has('folder.app');               // true
+ * INSTANCE usage (DI / new code):
+ *   $cfg->_get('info.emailfrom');
+ *   $cfg->_set('info.sitename', 'MvcLite');
+ *   $cfg->_has('folder.app');
+ *
+ * STATIC / FACADE usage (boot-time or legacy static code):
+ *   CConfig::get('info.emailfrom');   // works before AND after DI is ready
+ *   CConfig::set('info.selctl', 'front');
+ *   CConfig::has('folder.app');
+ *
+ * The facade delegates to the instance once setInstance() is called
+ * (after DI container is built in index.php).  Before that it falls
+ * back to the static $_cfg bridge array, so boot-time code like
+ * setActiveCtrl() works without any changes.
  *
  * @author chanhong
  */
@@ -24,15 +32,73 @@ defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 class CConfig
 {
     // ------------------------------------------------------------------
-    // Static bridge — kept ONLY for legacy code that reads CConfig::$_cfg
-    // directly.  New code should always go through the DI container and
-    // call $cfg->get('key').  Once all call-sites are migrated this
-    // property and the sync call in __construct can be removed.
+    // Facade — holds the singleton instance once DI is ready
     // ------------------------------------------------------------------
-// CConfig.php
+    private static ?self $instance = null;
+
+    /**
+     * Call once in index.php after initDI():
+     *   CConfig::setInstance($container->make('cfg'));
+     */
+    public static function setInstance(self $cfg): void
+    {
+        static::$instance = $cfg;
+    }
+
+    // ------------------------------------------------------------------
+    // Static facade — get/set/has work at any point in the boot sequence
+    // ------------------------------------------------------------------
+
+    public static function get(string $key, mixed $default = null): mixed
+    {
+        if (static::$instance !== null) {
+            return static::$instance->_get($key, $default);
+        }
+        // Pre-DI fallback: read from static bridge
+        $segments = explode('.', $key);
+        $value = static::$_cfg;
+        foreach ($segments as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return $default;
+            }
+            $value = $value[$segment];
+        }
+        //        pln($value,'get');
+        return $value;
+    }
+
+    public static function set(string $key, mixed $value): void
+    {
+        if (static::$instance !== null) {
+            static::$instance->_set($key, $value);
+            return;
+        }
+        // Pre-DI fallback: write to static bridge
+        $segments = explode('.', $key);
+        $target = &static::$_cfg;
+        foreach ($segments as $segment) {
+            if (!isset($target[$segment]) || !is_array($target[$segment])) {
+                $target[$segment] = [];
+            }
+            $target = &$target[$segment];
+        }
+        $target = $value;
+    }
+
+    public static function has(string $key): bool
+    {
+        if (static::$instance !== null) {
+            return static::$instance->_has($key);
+        }
+        return static::get($key) !== null;
+    }
+
+    // ------------------------------------------------------------------
+    // Static bridge — kept ONLY for legacy code that reads CConfig::$_cfg
+    // directly.  New code should use CConfig::get() / CConfig::set().
+    // Remove once all call-sites are migrated.
+    // ------------------------------------------------------------------
     public array $path = [];
-
-
     public static array $_cfg = [];
 
     protected array $data = [];
@@ -53,7 +119,8 @@ class CConfig
     }
 
     // ------------------------------------------------------------------
-    // Core read / write
+    // Instance read / write  (prefixed with _ to avoid collision with
+    // the static facade methods above)
     // ------------------------------------------------------------------
 
     /**
@@ -62,7 +129,7 @@ class CConfig
      * @param string $key     e.g. 'info.emailfrom' or a plain top-level key
      * @param mixed  $default Returned when the key does not exist
      */
-    public function get(string $key, mixed $default = null): mixed
+    public function _get(string $key, mixed $default = null): mixed
     {
         // Fast path — exact top-level key
         if (array_key_exists($key, $this->data)) {
@@ -86,10 +153,8 @@ class CConfig
     /**
      * Store a value using dot-notation.
      * Intermediate arrays are created automatically.
-     *
-     *   $cfg->set('info.sitename', 'MvcLite');
      */
-    public function set(string $key, mixed $value): void
+    public function _set(string $key, mixed $value): void
     {
         $segments = explode('.', $key);
         $target = &$this->data;
@@ -107,9 +172,9 @@ class CConfig
     /**
      * Check whether a dot-notation key exists (and is not null).
      */
-    public function has(string $key): bool
+    public function _has(string $key): bool
     {
-        return $this->get($key) !== null;
+        return $this->_get($key) !== null;
     }
 
     // ------------------------------------------------------------------

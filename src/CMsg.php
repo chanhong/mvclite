@@ -12,63 +12,28 @@ namespace MvcLite;
 class CMsg extends CCore
 {
     /**
-     * @var string
-     */
-    public $Title;
-
-    /**
-     * @return string
-     */
-    public static function FirstTask()
-    {
-        $Title = "Hello";
-        return $Title;
-    }
-
-    /**
      * @param string $ret
      */
-    public static function _appdmsg($ret)
+    public static function _dmsg($ret,$mvar="fbdmsg")
     {
         //            self::_appdmsg2AppState($ret);
-        self::_appdmsg2SessState($ret);
+        self::_appdmsg2Sess($ret,$mvar);
     }
 
     /**
      * @param string $ret
      */
-    public static function _appdmsg2SessState($ret)
+    public static function _appdmsg2Sess($ret,$mvar="fbdmsg")
     {
         $prev = "";
-        $sfbdmsg = \CUtil::getSessTxt("fbdmsg");
+        $sfbdmsg = \CUtil::getSessTxt($mvar);
         if ($sfbdmsg != null && strlen($sfbdmsg) > 0) {
             $prev = $sfbdmsg . " ";
         }
         // must use this to avoid un-initialize error
-        $_SESSION["fbdmsg"] = $prev . $ret;
+        $_SESSION[$mvar] = $prev . $ret;
     }
 
-    /**
-     * not use, use Session instead
-     * @param string $ret
-     */
-    public static function _appdmsg2AppState($ret)
-    {
-        $prev = "";
-        $fbdmsg = \CUtil::getAppTxt("fbdmsg");
-
-        if ($fbdmsg != null && strlen($fbdmsg) > 0) {
-            $prev = $fbdmsg . " ";
-        }
-        // Assuming self::$_ctx_c provides access to an application state object
-        self::$_ctx_c->Application["fbdmsg"] = $prev . $ret;
-    }
-
-    /* 
-            public static function _prt($msg) {
-                echo $msg;
-            }
-    */
 
     /**
      * various overload _dprt
@@ -77,9 +42,7 @@ class CMsg extends CCore
      */
     public static function _dprt($source, $prefix = "")
     {
-        $msg = self::_msg($source, $prefix);
-        self::_prt($msg);
-        //            echo $msg;
+        echo self::_msg($source, $prefix);
     }
 
     /**
@@ -166,30 +129,6 @@ class CMsg extends CCore
         return $ret;
     }
 
-    /**
-     * various overload _dmsg
-     * @param mixed $source
-     * @param string $prefix
-     * @return string
-     */
-    public static function _dmsg($source, $prefix = "")
-    {
-        $ret = self::_msg($source, $prefix);
-        self::_appdmsg($ret);
-        return $ret;
-    }
 
-    /**
-     * various overload _pdmsg
-     * @param mixed $source
-     * @param string $prefix
-     * @return string
-     */
-    public static function _pdmsg($source, $prefix = "")
-    {
-        $ret = "";
-        $ret = self::_dmsg($source, $prefix);
-        return $ret;
-    }
 }
-?>
+

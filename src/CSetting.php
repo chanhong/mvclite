@@ -38,6 +38,7 @@ class CSetting
     public ?array $cur = [];
     public ?array $qs = [];
 
+
     public static $_profile;
     public static $_usrInfo;
     public static $uinfo;

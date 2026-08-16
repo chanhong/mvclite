@@ -43,12 +43,12 @@ class CMenu
           [SMnu]:(jendo)
           [mnu]:(autocomplete=[http:\//localhost:83/ejvnetdev/?t=jendo&a=autocomplete],createselectpdf=[http:\//localhost:83/ejvnetdev/?t=jendo&a=createselectpdf],datepicker=[http:\//localhost:83/ejvnetdev/?t=jendo&a=datepicker],ldapUW=[http:\//localhost:83/ejvnetdev/?t=jendo&a=ldapUW],upload=[http:\//localhost:83/ejvnetdev/?t=jendo&a=upload]) 
           */
-          // CMsg::_pdmsg($mnu, "vfl"); // for each view folder
+          // CMsg::_msg($mnu, "vfl"); // for each view folder
           $lnka = null;
           $sbx = new StringBuilder();
           foreach (array_keys($mnu) as $s)
           {
-            // CMsg::_pdmsg($mnuType."-".$s, "m-i");
+            // CMsg::_msg($mnuType."-".$s, "m-i");
             if ($s != null && strlen($s) > 0)
             {
               $lnka = CUtil::mnu_s2a($mnu[$s], $s); // non-secure, inclusive
@@ -71,37 +71,12 @@ class CMenu
       return $sb->ToString();
     }
 
-    public static function setActiveCtrl($qsa)
-    {
-      // CMsg::_pdmsg($qsa, "setActiveCtrl");
-      $fa = null;
-      $selectctrl = "";
-      if ($qsa != null && count($qsa) > 0)
-      {
-        $fa = CUtil::getCfg("apps");
-        $mnu_apps = self::sName2Mnu($fa);
-        // CMsg::_pdmsg($fa, "setActiveCtrl");
-        if ($mnu_apps != null && isset($mnu_apps[$qsa[0]]) && strlen($mnu_apps[$qsa[0]]) > 0)
-        {
-          _ctx_c::$Application["selctrl"] = $qsa[0]; // set selected active controller
-          // CCore::$_cfg["mnu" . $qsa[0]] = [];
-        }
-        $selectctrl = self::getAppTxt("selctrl");
-        if ($selectctrl == "")
-        {
-          _ctx_c::$Application["selctrl"] = self::getAppTxt("defctrl"); // use default controller
-        }
-        // CMsg::_pdmsg(self::getAppTxt("selctrl"), "aselC");
-        _ctx_c::$Application["urllogin"] = "/" . CCore::getSelectedViewSet() . "/" . self::getAppTxt("login"); // set login url based on selected controller
-      }
-      CCore::SetMenuTop(); // set default for top menu
-    }
 
     public static function mnu2Li($mnu)
     {
       $lnka = null;
       $sb = new StringBuilder();
-      // CMsg::_pdmsg($mnu, "mnu");
+      // CMsg::_msg($mnu, "mnu");
       // [mnu]: (front =[http:\//localhost:83/ejvnetdev/?t=front],admin=[http:\//localhost:83/ejvnetdev/?t=admin])
       foreach (array_keys($mnu) as $s)
       {
@@ -119,7 +94,7 @@ class CMenu
       $lnka = null;
       $sb = new StringBuilder();
       // process each view file and link
-      // CMsg::_pdmsg($mnu, "mnu");
+      // CMsg::_msg($mnu, "mnu");
       // [mnu]:(jv=[http://localhost:83/ejvnetdev/?t=jv],jvadm=[http://localhost:83/ejvnetdev/?t=jvadm],jvapv=[http://localhost:83/ejvnetdev/?t=jvapv],jvtpl=[http://localhost:83/ejvnetdev/?t=jvtpl],jvinq=[http://localhost:83/ejvnetdev/?t=jvinq],jendo=[http://localhost:83/ejvnetdev/?t=jendo],jsgrid=[http://localhost:83/ejvnetdev/?t=jsgrid],ko=[http://localhost:83/ejvnetdev/?t=ko])
       foreach (array_keys($mnu) as $s)
       {
@@ -127,7 +102,7 @@ class CMenu
         {
           $lnka = CUtil::mnu_s2a($mnu[$s], $s); // http:\//localhost:83/ejvnetdev/test, test
                                      // [lnka]:(0=[http://localhost:83/ejvnetdev/?t=jvadm],1=[],2=[],3=[JV Admin]) 
-                                     // CMsg::_pdmsg($lnka, "lnka");
+                                     // CMsg::_msg($lnka, "lnka");
           if (
             CSecs::isPublicAccess4Mnu($lnka, $mnuType) == true
             || CSecs::isUsrHasAccess2Mnu($lnka, $mnuType) == true
@@ -138,8 +113,8 @@ class CMenu
           /*
           else
           {
-            CMsg::_pdmsg($lnka, "lnka-else");
-            CMsg::_pdmsg($mnuType, "mnuType");
+            CMsg::_msg($lnka, "lnka-else");
+            CMsg::_msg($mnuType, "mnuType");
             // $sb->Append(self::a2Li($lnka)); // add public menu
           }
           */
@@ -155,7 +130,7 @@ class CMenu
     public static function sName2Mnu(NameValueCollection $fa): NameValueCollection
     {
       $nvList = new NameValueCollection();
-      //      CMsg::_pdmsg($fa, "sName2Mnu");
+      //      CMsg::_msg($fa, "sName2Mnu");
       $name = "";
       foreach ($fa as $f)
       {
