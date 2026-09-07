@@ -1,8 +1,7 @@
 <?php
 
 // Assuming CDbOle, CDb, CMsg, CUtils, and CCore are defined elsewhere
-
-namespace Co {
+namespace MvcLite {
 
     class CAjx extends \CCore // Use backslash for global namespace if CCore is not in the same namespace
     {

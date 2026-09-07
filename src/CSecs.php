@@ -688,7 +688,7 @@ class CSecs extends CCore
 //            pln($imnureqgrpno, "imnureqgrpno");
             
             // is usr login, usrgrp above "user" group number
-            if ($iusrgrpno > 0) {
+//            if ($iusrgrpno > 0) {
                 switch ($opr) {
                     case ">=":
                         if ($iusrgrpno >= $imnureqgrpno) {
@@ -717,7 +717,7 @@ class CSecs extends CCore
                     default:
                         break;
                 }
-            }
+//            }
         }
         return $allowAccess;
     }

@@ -140,6 +140,24 @@ class CController extends Ccore
 
     function captureContent($fspec)
     {
+        if (!file_exists($fspec))
+            return;
+
+        (!empty($this->_view_data)) ? $pageData = $this->_view_data : $pageData = "";
+        ob_start();
+        try {
+            include $fspec;
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            pln($e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine(), 'captureContent-FATAL');
+            return '';
+        }
+        $contents = ob_get_contents();
+        ob_end_clean();
+        return trim($contents);
+    }
+    function captureContent_notry($fspec)
+    {
 
         if (!file_exists($fspec))
             return;
@@ -359,85 +377,186 @@ class CController extends Ccore
         }
     }
 
+    public function doU404_4_bug($args, $shortNameRte)
+    {
+        $p404 = CConfig::$_cfg['routes']['page404'];
+        $buff = "";
+        $ctl = CUtil::getClass($shortNameRte);
+        $vFile = $ctl->isLayout($ctl->layout);
+        self::$_action = $p404;  // <-- temp critical fix        for the doBodyNoLayout() ignore the 'content' but don't need with the fix in doBodyNoLayout()
+        $ctl->_view_data['content'] = $ctl->renderAppView($p404); // render content before the layout
+        if (!empty($vFile) and !empty($ctl->_view_data['content'])) {
+            //            $ctl->setViewData4Header();
+            ob_start();
+            include $vFile; // layout
+            $buff .= ob_get_contents(); // render content with layout
+//            $buff .= $ctl->_view_data['content']; // must do this for custom 404 to show, WHY??
+            ob_end_clean();
+            print trim($buff);
+        }
+    }
+
+    // WORK-unified 404, bad t= else fail, use internal 404
+    public function U404($args, $shortNameRte) // router controller and router shortname
+    {
+        // redirect Warning: Cannot modify header information - headers already sent by (output started at Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CUtil.php:1110) in Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CCore.php on line 195
+        $p404 = CConfig::$_cfg['routes']['page404'];
+        $task = $args['t'];
+        $action = $args['a'];
+        $ctl = CUtil::getClass($shortNameRte);
+
+        //                pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], 'U404-entry');
+        if ($ctl->isAppView($p404, $shortNameRte)) {
+            CUtil::debug("Custom 404: $task-$action");
+            //            $this->redirect2Url("?" . $p404); // WORK, bad t, good a and router page404 exist
+// render in place, keep the original URL and debug trail , WHY??? didn't work for some reason  
+            self::doView($ctl, $p404);
+            //            self::doU404_4_bug($args,$shortNameRte);
+            echo "here after doview";
+        } else {
+            CUtil::debug("Internal 404: $task-$action");
+            //                    gI404("$className-$action"); // internal 404
+            $this->i404("$task-$action"); // internal 404
+        }
+    }
+
+    public function isNotTG($args, $shortNameRte) // always MvcLite\Router
+    {
+        $task = $args['t'];
+        $action = $args['a'];
+        $tg = $this->stg->get('tg') ?? [];
+        //                        pln($tg,'tg');
+        $entry[$task] = $tg[strtolower($task)] ?? null;
+        $uinfo = $_SESSION["uinfo"] ?? [];
+        $ugrp = $uinfo['usrgroup'] ?? 'guest';
+        $tgrp = $entry[$task]['group'] ?? null;
+        /*
+                    pln($ugrp,'ugrp');
+                    pln($tgrp,'tgrp');
+                    pln($entry[$task],"t:$task");
+                    pln($uinfo,'uinfo');
+         */
+        if (
+            empty($entry[$task])
+            || !in_array(strtolower($action), $entry[$task]['actions'] ?? [], true)
+            || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
+        ) {
+            // this block everything even the front too? if let U404 run and return
+//            pln("tg-block: $task-$action not in tg allowlist");
+            self::U404($args, $shortNameRte);
+            return;
+        } else {
+//            pln("ELSE tg: $task-$action in tg allowlist");
+        }
+    }
+
     // bef DI   public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     public function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     {
-        $shortName = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
-        $args = CUtil::parseQs($routes, $shortName);
+//        pln($this->stg->get('tg'), "tg");
+
+        $shortNameRte = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
+        $args = CUtil::parseQs($routes, $shortNameRte);
         //        print "cn: $iClassName sn: $shortName rt: " . print_r($routes, true) . ", args: " . print_r($args, true); // already got 404?? redirect?
-        $className = $args['t'];
+        $task = $args['t'];
+        $tCtl = CUtil::getClass($task);
+
         // safe current action/view to be render by doBodyContent()
         self::$_action = $action = $args['a'];
         $rCtl = CUtil::getClass($iClassName);
+
+        // WORK 08/23: tg (built fresh every request by setMenu(), gated by usrgroup, sourced from the
+        // master task directory - not $selctrl) is the single source of truth for t=/a= access.
+        // Router itself (t=router) is exempt - it's not a task.
+        if (self::isNotTG($args, $shortNameRte)) return; // if not in TG return else let it through
+        //        print(print_r($this->stg->get('tg'),true));
+
         switch ($args) {
             // WORK, good t= & a=
-            case (strtolower($args['t']) <> strtolower($shortName)
-            and class_exists($className)):
+            case (strtolower($args['t']) <> strtolower($shortNameRte)
+            and class_exists($task)):
                 // if not router, make sure a valid action or view of a controller
-                $ctl = CUtil::getClass($className);
+//                $ctl = CUtil::getClass($task);
                 if (
-                    !empty($ctl)
-                    and (method_exists($ctl, $action) or $ctl->isAppView($action, $className))
+                    !empty($tCtl)
+                    and (method_exists($tCtl, $action) or $tCtl->isAppView($action, $task))
                 ) {
-                    CUtil::debug("rt: $className-$action");
-                    $ctl->start($args); // WORK good t & good a
+                    CUtil::debug("rt: $task-$action");
+                    $tCtl->start($args); // WORK good t & good a
                 }
                 // WORK, router? good t= but bad a=, MUST redirect multiple place to avoid mofified header warning
                 else {
-                    //                    print " good t= bad a= cn: $className a: $action" . ", args: " . print_r($args, true);
-                    CUtil::debug("Custom 404: $className-$action");
-                    // $this->cfg->get('routes.page404'); // DI??
-                    $this->redirect2Url("?" . CConfig::$_cfg['routes']['page404']);
+                    self::U404($args, $shortNameRte); // WORK-unified 404, catch bad a=
                 }
+
                 break;
-            // WORK, router? BAD t=,  good action, reditrect?   
+            case (!empty($action) // WORK, use router to process view if no controller
+            and $task <> strtolower($shortNameRte) // t <> router, use router to see view
+            and (!class_exists($task) // no controller
+            and $rCtl->isAppView($action, $task) // good action
+            )):
+                $rCtl->_class_path = $task; // use t as view for _class_path
+                self::doView($rCtl, $action); // use route to view action            
+                break;
+            // WORK, router? BAD t=,  good action, to stop reditrect loop
             case (!empty($action)
-            and $rCtl->isAppView($action, $shortName)
-            and ($className == strtolower($shortName))):
-                CUtil::debug("BAD route: $className-$action");
+            and $rCtl->isAppView($action, $shortNameRte)
+            and ($task == strtolower($shortNameRte))):
+                pln("BAD route: $task-$action");
                 self::doView($rCtl, $action); // use route, need this to avoid loop and show 404            
                 break;
             // WORK-unified 404, bad t= and/ or a=, else fail, use internal 404
             default:
-                if ($rCtl->isAppView(CConfig::$_cfg['routes']['page404'], $shortName)) {
-                    CUtil::debug("Custom 404: $className-$action");
-                    $this->redirect2Url("?" . CConfig::$_cfg['routes']['page404']); // WORK, bad t, good a and router page404 exist
-                } else {
-                    CUtil::debug("Internal 404: $className-$action");
-                    //                    gI404("$className-$action"); // internal 404
-                    $this->i404("$className-$action"); // internal 404
-                }
+                self::U404($args, $shortNameRte); // WORK-unified 404, catch bad a=
         }
     }
 
-    public static function doView($ctl, $action)
-    {
+    // bef DI   public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
 
+    public static function doView($ctl, $action) // more flexible: router process view file and action
+    {
+        //        pln($ctl);
         if (empty($ctl->_view_data['title'])) {
             $ctl->_view_data['title'] = $action;
         }
         if (empty($ctl->_view_data['pagetitle'])) {
             $ctl->add2HeaderArrays("pagetitle", $action);
         }
-        $ctl->setViewData($ctl->_class_path);
+        $ctl->setViewData($ctl->_class_path);   // can be override in doRouter to use t as view _class_path
 
         $buff = "";
         // render content before the layout
         $vFile = $ctl->isLayout($ctl->layout);
+        //        pln("doView:vFile-check: l:$vFile v:$ctl->_class_path a:$action");
+
         $ctl->_view_data['content'] = $ctl->renderAppView($action);
         if (!empty($vFile) and !empty($ctl->_view_data['content'])) {
+            //            pln("doView_path: $ctl-$action");
             $ctl->setViewData4Header();
             // render content with layout
             $buff = $ctl->captureContent($vFile);
-            //            echo $buff;
+            //            pln($buff, "doView:buff-check");
         }
         echo $buff;
     }
 
+
+    public function doBodyNoLayout_not_good()
+    {
+        echo "doBodyNoLayout:";
+        // content from the current action/view
+        return $this->renderAppView(self::$_action);
+    }
+
     public function doBodyNoLayout()
     {
+        // if content has already been rendered (e.g. by doView()/doU404()), use it as-is
+        if (!empty($this->_view_data['content'])) {
+            return $this->_view_data['content'];
+        }
 
-        // content from the current action/view
+        echo "doBodyNoLayout:";
+        // fallback: content from the current action/view
         return $this->renderAppView(self::$_action);
     }
 

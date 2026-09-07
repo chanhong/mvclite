@@ -721,7 +721,7 @@ class CUtil
     public static function dict2nv($dict)
     {
         if (is_object($dict)) {
-            return (array)$dict;
+            return (array) $dict;
         }
         return is_array($dict) ? $dict : [];
     }
@@ -1058,7 +1058,7 @@ class CUtil
         $querystring = null;
         // Check to make sure some query string variables exist
         $iqs = strpos($currurl, "?");
-//pln($currurl,"url: $iqs");
+        //pln($currurl,"url: $iqs");
 
         if ($iqs > 0) {
             // filter out the ?
@@ -1094,7 +1094,7 @@ class CUtil
         return $ret . $cqs;
     }
 
-    public static function setActiveCtrl($qsa = [])
+    public static function setActiveCtrl_no_list($qsa = [])
     {
         //        pln($qsa, "qsa");
         if ($qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
@@ -1107,9 +1107,11 @@ class CUtil
         //        pln(CSetting::get('selctrl'), "setActiveCtrl");
         //        pln(CSetting::get('takey'), "setActiveCtrl-takey");
         self::setMenu(CSetting::get('selctrl'));
+        //        pln(CSetting::$_stg['tg'],'setActiveCtrl-tg');
+
     }
 
-    public static function ai_bad_setActiveCtrl($qsa = [])
+    public static function setActiveCtrl($qsa = []) // include apps.list
     {
         //        pln($qsa, "qsa");
 
@@ -1120,7 +1122,7 @@ class CUtil
         if ($apps != null && $qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
             $fa = explode(',', $apps);
             $mnu_apps = self::sName2Mnu($fa);
-            //            pln($mnu_apps, "mnu_apps");
+//                        pln($mnu_apps, "mnu_apps");
             $tsk = $qsa['t'];
             //            pln($tsk, "tsk");
             if (isset($mnu_apps[$tsk]) && $mnu_apps != null && $mnu_apps[$tsk] != null) {
@@ -1133,7 +1135,7 @@ class CUtil
             }
         }
         //        CCore::SetMenuTop(); // set default for top menu, add to get
-        pln(CSetting::get('selctrl'), "setActiveCtrl");
+//        pln(CSetting::get('selctrl'), "setActiveCtrl");
         //        pln(CSetting::get('takey'), "setActiveCtrl-takey");
         self::setMenu(CSetting::get('selctrl'));
     }
@@ -1226,6 +1228,18 @@ class CUtil
         return $qsa['t'] ?? CCore::$_cfg["defctrl"] ?? CCore::$_cfg["default_controller"] ?? '';
     }
     public static function TaskGroup(string $task = "_cfgtg"): string
+    {
+        if (empty($tg)) {
+//            pln($task, 'TaskGroup-lookup-tg-empty');
+        }
+
+        if ($task === "_cfgtg") {
+            return ""; // legacy boot-time build call, now a no-op — setMenu()/buildTg() owns this
+        }
+        $tg = CSetting::get('tg') ?? [];
+        return $tg[strtolower($task)]['group'] ?? '';
+    }
+    public static function TaskGroup_old(string $task = "_cfgtg"): string
     {
         $group = "";
         $uInfoa = [];
@@ -1683,10 +1697,139 @@ if ($namesArray === null) {
         return $ret;
     }
 
-    public static function setMenu($selctrl) // // WORK 07/02/2026 build and get topmenu and build global taskgroup master list
+    private static function buildTg_wearning($ctrl, &$tg, $visited = [])
+    {
+        if (in_array($ctrl, $visited))
+            return; // guard against circular app refs
+        $visited[] = $ctrl;
+
+        $taskDir = CSetting::get('apps.' . $ctrl) ?? [];
+        foreach ($taskDir as $s => $value) {
+            if (isset($tg[$s]))
+                continue; // already registered by a higher-level group
+
+            list($tgroup, $ttitle) = explode(',', $value);
+            (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
+
+            $actions = [strtolower(CSetting::get('defview'))];
+            $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s))));
+            $tg[$s] = ['group' => $tgroup, 'actions' => array_values(array_unique($actions))];
+
+            // if this task name is itself a nested app-group (e.g. 'learn' owning 'jendo'),
+            // recurse into it so its sub-apps become reachable too
+            if (CSetting::get('apps.' . $s) !== null) {
+                self::buildTg($s, $tg, $visited);
+            }
+        }
+    }
+    private static function buildTg($ctrl, &$tg, $visited = [])
+    {
+        if (in_array($ctrl, $visited))
+            return;
+        $visited[] = $ctrl;
+
+        $taskDir = CSetting::get('apps.' . $ctrl);
+        if (!is_array($taskDir))
+            return;   // guards line 1695 foreach directly
+
+        foreach ($taskDir as $s => $value) {
+            if (isset($tg[$s]))
+                continue;
+
+            list($tgroup, $ttitle) = explode(',', $value);
+            (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
+
+            $actions = [strtolower(CSetting::get('defview'))];
+            $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s))));
+            $tg[$s] = ['group' => $tgroup, 'actions' => array_values(array_unique($actions))];
+
+            $nested = CSetting::get('apps.' . $s);
+            if (is_array($nested)) {   // <-- tightened from !== null
+                self::buildTg($s, $tg, $visited);
+            }
+        }
+    }
+    // setmenu sync bug???  CONTINUE this later
+    public static function setMenu($selctrl)
     {
         $ttitle = $tgroup = $atop = $b = "";
-        $tg = $fa = $mnu_apps = [];
+        $loginOrOut = $tg = $fa = $mnu_apps = [];
+
+        $mnuHome = CCore::$_cfg["mnuhome"] ?? [];
+        $mnuCommon = CCore::$_cfg["mnucommon"] ?? [];
+        $mnu_top = array_merge($mnuHome, $mnuCommon) ?? [];
+        if (!empty($mnu_top)) {
+            CSetting::set('menus.main', $mnu_top);
+        }
+        // new tg base on buildTg
+        /*
+        // try to fix odata bug
+        $defctrl = CSetting::get('defctrl');
+        $tg = [];
+        self::buildTg($defctrl, $tg);
+        CSetting::set('tg', $tg);
+        */
+        // new tg base on buildTg
+
+        // new tg base on buildTg
+        $tg = [];
+        $topGroups = array_map('trim', explode(',', CSetting::get('apps.list'))); // trying to fix odata bug
+        foreach ($topGroups as $grp) {
+            self::buildTg($grp, $tg);
+        }
+        CSetting::set('tg', $tg);
+        // new tg base on buildTg
+
+        // --- menu building stays scoped to selctrl, unrelated to tg now ---
+        $fa = CSetting::get('apps.' . $selctrl);
+        foreach ($fa ?? [] as $s => $value) {
+            list($tgroup, $ttitle) = explode(',', $value);
+            (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
+            (empty($ttitle)) ? $ttitle = ucfirst($s) : $ttitle;
+
+            $viewPath = CFiles::getRealViewPath($s);
+            if (is_dir($viewPath) && (substr($s, 0, 1) <> "_")) {
+                $a = CSetting::get('defview');
+                if (
+                    empty($tgroup) || $tgroup == 'guest'
+                    || CSecs::IsUsrGrpComp($_SESSION["uinfo"]['usrgroup'] ?? 'guest', $tgroup, ">=")
+                ) {
+                    $mnu_apps[$s] = ['title' => $ttitle, 'path' => "/$s/$a"];
+                }
+            }
+        }
+        if (!empty($mnu_apps)) {
+            unset($mnu_apps[$selctrl]);
+            if (!empty($mnu_apps)) {
+                $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? [];
+                CSetting::set('menus.app', $mnu_apps);
+            }
+        }
+        // ... rest (login/logout, submenu) unchanged
+        $viewPath = CFiles::getRealViewPath($selctrl); // check to see if task has views
+        if (is_dir($viewPath) && (substr($selctrl, 0, 1) <> "_")) { // exclude _app
+            $login = "_login";
+            if (
+                empty($_SESSION["uinfo"]['usrgroup'])
+            ) {
+                $vfile = "$viewPath/$login" . CSetting::get('viewext'); // get _login.php file path
+                $loginOrOut['Login'] = (file_exists($vfile)) ? self::tap("/$selctrl/$login") : '';
+            } else {
+                $loginOrOut['Logout'] = self::tap(CSetting::get("urllogout"));
+            }
+        }
+        $fldviews = self::viewDir2Nv4Mnu($selctrl); // All menu links from the view folder
+        $smnu = array_merge($loginOrOut, $fldviews) ?? []; // add separator
+        if (empty($smnu) == false) {
+            CSetting::set('menus.sub', $smnu); // add to global taskgroup
+        }
+
+    }
+
+    public static function setMenu_old_sync_bug($selctrl) // // WORK 07/02/2026 build and get topmenu and build global taskgroup master list
+    {
+        $ttitle = $tgroup = $atop = $b = "";
+        $loginOrOut = $tg = $fa = $mnu_apps = [];
 
         $mnuHome = CCore::$_cfg["mnuhome"] ?? [];
         $mnuCommon = CCore::$_cfg["mnucommon"] ?? [];
@@ -1702,7 +1845,13 @@ if ($namesArray === null) {
             list($tgroup, $ttitle) = explode(',', $value);  // group,title 
             (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
             (empty($ttitle)) ? $ttitle = ucfirst($s) : $ttitle;
-            $tg[$s] = $tgroup; // build a global task group by add each task group to array
+            $actions = [strtolower(CSetting::get('defview'))]; // defview is always a valid action (task's entry point)
+            $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s)))); // view files as actions
+//            pln($actions, "s:$s a=");
+            //            $tg[$s] = $tgroup; // build a global task group by add each task group to array
+            $tg[$s] = ['group' => $tgroup, 'actions' => array_values(array_unique($actions))]; // build a global task group by add each task group & actions to array
+//            pln($tg[$s], "s:$s tg");
+
             $viewPath = CFiles::getRealViewPath($s); // check to see if task has views
             if (is_dir($viewPath) && (substr($s, 0, 1) <> "_")) { // exclude _app
                 $a = CSetting::get('defview');
@@ -1716,15 +1865,16 @@ if ($namesArray === null) {
             }
         }
         if (!empty($mnu_apps)) {
-//            pln($mnu_apps, 'mnu');
+            //            pln($mnu_apps, 'mnu');
             CSetting::set('tg', $tg); // add to global taskgroup
             unset($mnu_apps[$selctrl]); // remove selctrl
 //            $mnu_apps = self::rmArr1D($mnu_apps, $selctrl) ?? []; // remove selctrl 
             if (!empty($mnu_apps)) { // check again after remove selctrl
                 $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? []; // add separator
-                CSetting::set('menus.app', $mnu_apps); // add to global taskgroup
+                CSetting::set('menus.app', $mnu_apps); // add to global menus
             }
         }
+
         $viewPath = CFiles::getRealViewPath($selctrl); // check to see if task has views
         if (is_dir($viewPath) && (substr($selctrl, 0, 1) <> "_")) { // exclude _app
             $login = "_login";
@@ -1889,15 +2039,15 @@ if ($namesArray === null) {
         }
         return $sb;
     }
-/**
- * Utility class that mirrors the C# HttpResponse helper.
- *
-* $data = ['status' => 'ok', 'message' => 'All good!'];
-* outJson(json_encode($data));
-* 
- * Usage:
- *   JsonHelper::outJson($jsonString);
- */
+    /**
+     * Utility class that mirrors the C# HttpResponse helper.
+     *
+     * $data = ['status' => 'ok', 'message' => 'All good!'];
+     * outJson(json_encode($data));
+     * 
+     * Usage:
+     *   JsonHelper::outJson($jsonString);
+     */
     /**
      * Sends a JSON response and stops further output.
      *
@@ -1930,7 +2080,7 @@ if ($namesArray === null) {
         }
         exit; // ensures nothing else is sent after the JSON payload
     }
-}    
+}
 
 
 

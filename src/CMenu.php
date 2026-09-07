@@ -166,7 +166,7 @@ class CMenu
     /**
      * Scans a directory and converts subdirectories into a menu collection.
      */
-    public static function viewDir2Nv4Mnu(string $dPath = "."): NameValueCollection
+    public static function NOT_viewDir2Nv4Mnu(string $dPath = "."): NameValueCollection
     {
       $nvList = new NameValueCollection();
       $files = self::getViewNameArray($dPath);
