@@ -248,7 +248,7 @@ class CUtil
     {
 
         $str = "";
-        while (list($key, $val) = each($iArray)) {
+        foreach ($iArray as $key => $val) {
             if (isset($checkNumArray[$key]) and $key == $checkNumArray[$key] and empty($val)) {
                 $val = "0"; // set to "0" only in the $checkNumArray and is empty
             }
@@ -262,7 +262,7 @@ class CUtil
     {
 
         $str = "";
-        while (list($key, $val) = each($iArray)) {
+        foreach ($iArray as $key => $val) {
             if (empty($val))
                 $val = "0"; // set to 0 if null
             $str .= $val . ", ";

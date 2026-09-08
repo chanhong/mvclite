@@ -39,7 +39,7 @@ class CModel extends CCore {
 
             if (!empty($tName)) {
                 // Assuming CDb::getOleDsn returns the DSN string
-                $jsgoledsn = \CDb::getOleDsn($appstring); // Assuming static method call
+                $jsgoledsn = CDb::getOleDsn($appstring); // Assuming static method call
 
                 // Safety: Ensure $tName is a valid identifier to prevent SQL injection if not already sanitized.
                 // For simplicity here, assuming $tName is safe or handled by CDb::getOleDsn if it sanitizes.
@@ -47,10 +47,10 @@ class CModel extends CCore {
                 $strQry = "SELECT TOP 1 * FROM [" . str_replace("'", "''", $tName) . "]"; // Basic quoting for table name
 
                 // Assuming CDbPdo::oleSchemaExNv returns an associative array (NameValueCollection equivalent)
-                $nvSchemaEx = \CDbPdo::oleSchemaExNv($jsgoledsn, $strQry); // Assuming static method call
+                $nvSchemaEx = CDbPdo::oleSchemaExNv($jsgoledsn, $strQry); // Assuming static method call
 
                 // Assuming CDb::nvSchemaByType processes the schema array to extract type information
-                $nvSchema = \CDb::nvSchemaByType($nvSchemaEx, "type"); // Assuming static method call
+                $nvSchema = CDb::nvSchemaByType($nvSchemaEx, "type"); // Assuming static method call
             }
             return $nvSchema;
         }

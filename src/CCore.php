@@ -235,10 +235,10 @@ see public\index.php step 5-8
         $ret = "";
         $vPath = CSetting::get(("viewpath"));
         if ($sTask != "") {
-            $vPath = $vPath + "/" + $sTask;
+            $vPath = $vPath . "/" . $sTask;
         }
 
-        $fname = $vPath + "/" + $sView + CSetting::get(("viewext"));
+        $fname = $vPath . "/" . $sView . CSetting::get(("viewext"));
         $fullFilePath = CFiles::RealFilePath($fname);
         if (file_exists($fullFilePath)) {
             $ret = $fname;
@@ -313,7 +313,9 @@ see public\index.php step 5-8
     {
         $fa = [];
         $mnuLinks = $mnu_apps = [];
-        ($task == "") ?? $task = CSetting::get("selctrl");
+        if ($task == "") {
+            $task = CSetting::get("selctrl");
+        }
         $mnuHome = CCore::$_cfg["mnuhome"] ?? [];
         $mnuCommon = CCore::$_cfg["mnucommon"] ?? [];
         //        $mnu_apps = CCore::$_cfg["mnu_" . $task];

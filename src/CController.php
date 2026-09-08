@@ -444,9 +444,10 @@ class CController extends Ccore
             // this block everything even the front too? if let U404 run and return
 //            pln("tg-block: $task-$action not in tg allowlist");
             self::U404($args, $shortNameRte);
-            return;
+            return true;
         } else {
 //            pln("ELSE tg: $task-$action in tg allowlist");
+            return false;
         }
     }
 
@@ -471,7 +472,7 @@ class CController extends Ccore
         if (self::isNotTG($args, $shortNameRte)) return; // if not in TG return else let it through
         //        print(print_r($this->stg->get('tg'),true));
 
-        switch ($args) {
+        switch (true) {
             // WORK, good t= & a=
             case (strtolower($args['t']) <> strtolower($shortNameRte)
             and class_exists($task)):
