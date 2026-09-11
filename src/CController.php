@@ -405,7 +405,9 @@ class CController extends Ccore
         $action = $args['a'];
         $ctl = CUtil::getClass($shortNameRte);
 
-        //                pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], 'U404-entry');
+//        pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], 'U404-entry');
+
+
         if ($ctl->isAppView($p404, $shortNameRte)) {
             CUtil::debug("Custom 404: $task-$action");
             //            $this->redirect2Url("?" . $p404); // WORK, bad t, good a and router page404 exist
@@ -422,42 +424,39 @@ class CController extends Ccore
 
     public function isNotTG($args, $shortNameRte) // always MvcLite\Router
     {
+        $notTnTg = false;
         $task = $args['t'];
         $action = $args['a'];
         $tg = $this->stg->get('tg') ?? [];
-        //                        pln($tg,'tg');
+        $tgpass = $this->stg->get('tgExemptControllers') ?? [];
         $entry[$task] = $tg[strtolower($task)] ?? null;
+        //        pln($entry[$task], 'entry=t');
+//                                pln($tg,"isNotTG:tg t:$task");
+//                                pln($tgpass,"isNotTG:tgpass t:$task");
+
         $uinfo = $_SESSION["uinfo"] ?? [];
         $ugrp = $uinfo['usrgroup'] ?? 'guest';
         $tgrp = $entry[$task]['group'] ?? null;
-        /*
-                    pln($ugrp,'ugrp');
-                    pln($tgrp,'tgrp');
-                    pln($entry[$task],"t:$task");
-                    pln($uinfo,'uinfo');
-         */
-        if (
-            empty($entry[$task])
-            || !in_array(strtolower($action), $entry[$task]['actions'] ?? [], true)
-            || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
-        ) {
-            // this block everything even the front too? if let U404 run and return
-//            pln("tg-block: $task-$action not in tg allowlist");
-            self::U404($args, $shortNameRte);
-            return true;
+        if (in_array(strtolower($task), $tgpass, true)) {
+            $notTnTg = false;
         } else {
-//            pln("ELSE tg: $task-$action in tg allowlist");
-            return false;
+            $notTnTg = empty($entry[$task])
+                || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
+                || !in_array(strtolower($action), $entry[$task]['actions'] ?? [], true);
         }
+
+        return $notTnTg;
     }
 
     // bef DI   public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     public function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     {
-//        pln($this->stg->get('tg'), "tg");
+        //                pln($this->stg->get('tg'), "tg");
 
         $shortNameRte = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
         $args = CUtil::parseQs($routes, $shortNameRte);
+        CUtil::captureLastUrl($args);   // moved here — single, reliable call per request        
+        //        pln($args, 'doRouter-args-for-logout');
         //        print "cn: $iClassName sn: $shortName rt: " . print_r($routes, true) . ", args: " . print_r($args, true); // already got 404?? redirect?
         $task = $args['t'];
         $tCtl = CUtil::getClass($task);
@@ -469,9 +468,10 @@ class CController extends Ccore
         // WORK 08/23: tg (built fresh every request by setMenu(), gated by usrgroup, sourced from the
         // master task directory - not $selctrl) is the single source of truth for t=/a= access.
         // Router itself (t=router) is exempt - it's not a task.
-        if (self::isNotTG($args, $shortNameRte)) return; // if not in TG return else let it through
-        //        print(print_r($this->stg->get('tg'),true));
+        if (self::isNotTG($args, $shortNameRte) == true)
+            self::U404($args, $shortNameRte); // 404
 
+        //        print (print_r($this->stg->get('tg'), true));
         switch (true) {
             // WORK, good t= & a=
             case (strtolower($args['t']) <> strtolower($shortNameRte)
@@ -483,6 +483,7 @@ class CController extends Ccore
                     and (method_exists($tCtl, $action) or $tCtl->isAppView($action, $task))
                 ) {
                     CUtil::debug("rt: $task-$action");
+                    //                    pln("rt: $task-$action");
                     $tCtl->start($args); // WORK good t & good a
                 }
                 // WORK, router? good t= but bad a=, MUST redirect multiple place to avoid mofified header warning
@@ -496,6 +497,7 @@ class CController extends Ccore
             and (!class_exists($task) // no controller
             and $rCtl->isAppView($action, $task) // good action
             )):
+                //                pln("use route: $task-$action");
                 $rCtl->_class_path = $task; // use t as view for _class_path
                 self::doView($rCtl, $action); // use route to view action            
                 break;

@@ -187,6 +187,13 @@ see public\index.php step 5-8
         return CDebug::debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
 
+    public static function _Logout() // Action->logout()?
+    {
+      CUtil::Cookie_Usr();
+      CCore::ClearUser();
+      CUtil::Add2SessVar("feedback", "You are logoff!");
+    }
+
     public static function redirect2Url($ret2URL = null)
     {
         if (is_null($ret2URL)) {

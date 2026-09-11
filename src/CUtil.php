@@ -741,6 +741,8 @@ class CUtil
 
     public static function aliasLookup($app, $aliases)
     {
+        // aliaslookup() will produce t=users&a=logout // turn off to use router&a=logout
+
         //        CUtil::debug($app,'app');       
         $luArr = array();
         foreach ($aliases as $key => $aliasArray) {
@@ -751,6 +753,8 @@ class CUtil
                 break;
             }
         }
+        //        pln($luArr, 'alias');
+        //exit;
         //        CUtil::debug($luArr,'alias');       
         return $luArr;
     }
@@ -800,7 +804,7 @@ class CUtil
         $args = $qsArr;
         if (!empty($args['t']) and $luArr = CUtil::aliasLookup($args['t'], $routes['alias'])) {
             $args = $luArr;
-            //            print CUtil::debug($args, ':aft-alias');  
+            //            pln($args, ':aft-alias');
         }
         // if not a full QS then patch it up with either default controller or this class
         $defCntl = strtolower($routes['default_controller']);
@@ -1113,7 +1117,7 @@ class CUtil
 
     public static function setActiveCtrl($qsa = []) // include apps.list
     {
-        //        pln($qsa, "qsa");
+        //            pln($qsa, "setActiveCtrl-qsa");
 
         $fa = [];
 
@@ -1122,7 +1126,7 @@ class CUtil
         if ($apps != null && $qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
             $fa = explode(',', $apps);
             $mnu_apps = self::sName2Mnu($fa);
-//                        pln($mnu_apps, "mnu_apps");
+            //                        pln($mnu_apps, "mnu_apps");
             $tsk = $qsa['t'];
             //            pln($tsk, "tsk");
             if (isset($mnu_apps[$tsk]) && $mnu_apps != null && $mnu_apps[$tsk] != null) {
@@ -1138,7 +1142,30 @@ class CUtil
 //        pln(CSetting::get('selctrl'), "setActiveCtrl");
         //        pln(CSetting::get('takey'), "setActiveCtrl-takey");
         self::setMenu(CSetting::get('selctrl'));
+        //    self::captureLastUrl($qsa);   // NEW
+//    pln($_SESSION['lastUrl'] ?? 'NOT SET', 'lastUrl-check');
     }
+
+    public static function captureLastUrl($qsa)
+    {
+        // Skip requests with no real querystring at all (e.g. /favicon.ico, robots.txt,
+        // or any other bare-path request where parseQs() silently defaulted t/a).
+        if (empty($_SERVER['QUERY_STRING'])) {
+            return;
+        }
+
+        $t = strtolower($qsa['t'] ?? CSetting::get('selctrl') ?? '');
+        $a = strtolower($qsa['a'] ?? '');
+
+        $excludedT = ['action'];
+        $excludedA = ['login', '_login', 'logout', '_logout'];
+
+        if (!in_array($t, $excludedT) && !in_array($a, $excludedA)) {
+            $_SESSION['lastUrl'] = self::MyUrl();
+        }
+    }
+
+
 
 
     public static function sName2Mnu($fa) // a from apps list (no title) or the menu array with title
@@ -1230,7 +1257,7 @@ class CUtil
     public static function TaskGroup(string $task = "_cfgtg"): string
     {
         if (empty($tg)) {
-//            pln($task, 'TaskGroup-lookup-tg-empty');
+            //            pln($task, 'TaskGroup-lookup-tg-empty');
         }
 
         if ($task === "_cfgtg") {
@@ -1355,6 +1382,31 @@ pln( $uInfoa,'_cfgtg');
         setcookie($key, $value, (int) $expires, '/', $mach_name);
     }
     public static function getReturnUrl()
+    {
+        $returl = "?";
+
+        $frm = $_POST;
+
+        $qsa = self::qs2nv();
+        $selectctrl = CCore::getSelectedViewSet();
+        if ($qsa != null) {
+            if (isset($qsa["rurl"]) && !CString::IsEmpty($qsa["rurl"])) {
+                $returl = $qsa["rurl"]; // from QS of the url of redirected
+            } else if (isset($frm["rurl"]) && !CString::IsEmpty($frm["rurl"])) {
+                $returl = $frm["rurl"]; // from the form of redirected
+            } else if (!empty($_SESSION['lastUrl'])) {        // NEW
+                $returl = $_SESSION['lastUrl'];               // NEW
+//        } else if (!CString::IsEmpty($selectctrl) && $selectctrl != "action") {
+            } else if (!CString::IsEmpty($selectctrl) && $selectctrl != "action" && $selectctrl != "router") {
+                $returl = self::tap("/" . $selectctrl . '/index'); // if not action then use the selected controller for redirect
+            }
+        }
+//        pln($returl, "getReturnUrl");
+//        pln($_SESSION['lastUrl'] ?? 'NOT SET');
+        //        exit;
+        return $returl;
+    }
+    public static function k09092026_getReturnUrl()
     {
         $returl = "?";
         /*
@@ -1568,6 +1620,22 @@ pln( $uInfoa,'_cfgtg');
         return $nvList;
     }
 
+    public static function getViewNameArray(string $dPath = ".", $excl = ["index", "_*"]): ?array
+    {
+        $files = CFiles::getViewFilesExcl($dPath, $excl);
+        if ($files !== null) {
+            $ofiles = [];
+            foreach ($files as $f) {
+                $fileNameWithoutExtension = pathinfo($f, PATHINFO_FILENAME);
+                $ofiles[] = $fileNameWithoutExtension;
+            }
+            $ret = $ofiles;
+        } else {
+            $ret = null;
+        }
+        return $ret;
+    }
+
     /**
      * Gets an array of filenames (without extensions) from files in a directory,
      * excluding specific files based on CFiles::getViewFilesExcl results.
@@ -1577,7 +1645,7 @@ pln( $uInfoa,'_cfgtg');
      * @param string $excl The filename (without extension) to exclude. Defaults to "index".
      * @return array<string>|null An array of filenames (without extensions), or null if no files were found by getViewFilesExcl.
      */
-    public static function getViewNameArray(string $dPath = ".", string $excl = "index"): ?array
+    public static function NO_Exclu_getViewNameArray(string $dPath = ".", string $excl = "index"): ?array
     {
         // C# `FileInfo[] files = CFiles.getViewFilesExcl(dPath, excl);`
         // PHP equivalent: Call the static method. Result could be null or an array.
@@ -1738,9 +1806,14 @@ if ($namesArray === null) {
 
             list($tgroup, $ttitle) = explode(',', $value);
             (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
-
+            /*
+            // no exlc 
+                        $actions = [strtolower(CSetting::get('defview'))];
+                        $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s))));
+            */
             $actions = [strtolower(CSetting::get('defview'))];
-            $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s))));
+            $actions = array_merge($actions, array_map('strtolower', self::getViewNameArray($s, ["index"]) ?? []));
+
             $tg[$s] = ['group' => $tgroup, 'actions' => array_values(array_unique($actions))];
 
             $nested = CSetting::get('apps.' . $s);

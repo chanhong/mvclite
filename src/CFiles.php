@@ -900,44 +900,44 @@ class PdfGenerator {
         }
     }
 
-    public static function getViewFilesExcl($dPath = ".", $excl = "index")
-    {
-        $ret = null;
-        // Create a DirectoryInfo of the directory of the files to enumerate.
-        $viewPath = self::getRealViewPath($dPath); // Assuming getRealViewPath is a defined function
+    public static function getViewFilesExcl($dPath = ".", $excl = ["index", "_*"])
+{
+    // Backward compatibility: allow old string callers to keep working
+    if (is_string($excl)) {
+        $excl = [$excl];
+    }
 
-        if (is_dir($viewPath)) {
-            $dirInfo = dir($viewPath); // Use PHP's dir() function or DirectoryIterator
+    $ret = null;
+    $viewPath = self::getRealViewPath($dPath);
 
-            // Alternative 1: Using glob and array_filter (more idiomatic PHP)
-            $pattern = $viewPath . '/*';
-            $allFiles = glob($pattern);
+    if (is_dir($viewPath)) {
+        $pattern = $viewPath . '/*';
+        $allFiles = glob($pattern);
 
-            $files = array_filter($allFiles, function ($filePath) use ($excl) {
-                $fileNameWithoutExt = strtolower(pathinfo($filePath, PATHINFO_FILENAME));
-                $baseName = basename($filePath);
-                return $fileNameWithoutExt !== strtolower($excl) && substr($baseName, 0, 1) !== '_';
-            });
+        $files = array_filter($allFiles, function ($filePath) use ($excl) {
+            $fileNameWithoutExt = strtolower(pathinfo($filePath, PATHINFO_FILENAME));
+            $baseName = strtolower(basename($filePath));
 
-            $ret = $files;
-
-            // Alternative 2: Using DirectoryIterator (closer to the original intent)
-            /*
-            $iterator = new DirectoryIterator($viewPath);
-            $files = [];
-            foreach ($iterator as $fileinfo) {
-                if ($fileinfo->isFile()) {
-                    $fileNameWithoutExt = strtolower($fileinfo->getBasename('.' . $fileinfo->getExtension()));
-                    if ($fileNameWithoutExt !== strtolower($excl) && $fileinfo->getBasename()[0] !== '_') {
-                        $files[] = $fileinfo->getPathname(); // Or $fileinfo objects
+            foreach ($excl as $rule) {
+                $rule = strtolower($rule);
+                if (str_ends_with($rule, '*')) {
+                    $prefix = rtrim($rule, '*');
+                    if (str_starts_with($baseName, $prefix)) {
+                        return false;
+                    }
+                } else {
+                    if ($fileNameWithoutExt === $rule) {
+                        return false;
                     }
                 }
             }
-            $ret = $files;
-            */
-        }
-        return $ret;
+            return true;
+        });
+
+        $ret = $files;
     }
+    return $ret;
+}
     /*
     // Dummy function for getRealViewPath if it's not defined elsewhere
     // In a real scenario, this function would handle path manipulation.
