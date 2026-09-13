@@ -397,24 +397,55 @@ class CController extends Ccore
     }
 
     // WORK-unified 404, bad t= else fail, use internal 404
-    public function U404($args, $shortNameRte) // router controller and router shortname
+public function U404($args, $shortNameRte) // router controller and router shortname
+{
+    $p404   = CConfig::$_cfg['routes']['page404'];
+    $task   = $args['t'];
+    $action = $args['a'];
+    $ctl    = CUtil::getClass($shortNameRte);
+    $s404   = $this->stg->get('404s'); // ordered fallback view locations, e.g. ['action','router']
+
+    pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
+
+    foreach ($s404 as $loc) {
+        if ($loc === 'action') {
+            // no controller class for this view (e.g. logout) —
+            // render the view file directly, skip controller resolution
+            $target = 'action';
+            $ctl->_class_path = $target;
+        } else {
+            // 'router' (or a named router shortname) — controller class
+            // already resolved normally, _class_path is already correct
+            $target = ($loc === 'router') ? $shortNameRte : $loc;
+        }
+
+        if ($ctl->isAppView($p404, $target)) {
+            self::doView($ctl, $p404);
+            return;
+        }
+    }
+
+    // exhausted every location in $s404 — nothing to render, go internal
+    CUtil::debug("Internal 404: $task-$action");
+    $this->i404("$task-$action"); // internal 404
+}    
+    public function old_U404($args, $shortNameRte) // router controller and router shortname
     {
         // redirect Warning: Cannot modify header information - headers already sent by (output started at Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CUtil.php:1110) in Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CCore.php on line 195
         $p404 = CConfig::$_cfg['routes']['page404'];
         $task = $args['t'];
         $action = $args['a'];
         $ctl = CUtil::getClass($shortNameRte);
+        $s404 = $this->stg->get('404s'); // 404 locations ['action','router']
+        pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
 
-//        pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], 'U404-entry');
-
-
-        if ($ctl->isAppView($p404, $shortNameRte)) {
-            CUtil::debug("Custom 404: $task-$action");
+        if ($ctl->isAppView($p404, "action")) { // action
+            $ctl->_class_path = "action"; // use "action" as view for _class_path
+            self::doView($ctl, $p404);
+        } else if ($ctl->isAppView($p404, $shortNameRte)) { //router
             //            $this->redirect2Url("?" . $p404); // WORK, bad t, good a and router page404 exist
 // render in place, keep the original URL and debug trail , WHY??? didn't work for some reason  
             self::doView($ctl, $p404);
-            //            self::doU404_4_bug($args,$shortNameRte);
-            echo "here after doview";
         } else {
             CUtil::debug("Internal 404: $task-$action");
             //                    gI404("$className-$action"); // internal 404
@@ -430,10 +461,6 @@ class CController extends Ccore
         $tg = $this->stg->get('tg') ?? [];
         $tgpass = $this->stg->get('tgExemptControllers') ?? [];
         $entry[$task] = $tg[strtolower($task)] ?? null;
-        //        pln($entry[$task], 'entry=t');
-//                                pln($tg,"isNotTG:tg t:$task");
-//                                pln($tgpass,"isNotTG:tgpass t:$task");
-
         $uinfo = $_SESSION["uinfo"] ?? [];
         $ugrp = $uinfo['usrgroup'] ?? 'guest';
         $tgrp = $entry[$task]['group'] ?? null;
@@ -444,7 +471,6 @@ class CController extends Ccore
                 || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
                 || !in_array(strtolower($action), $entry[$task]['actions'] ?? [], true);
         }
-
         return $notTnTg;
     }
 
