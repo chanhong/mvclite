@@ -1401,7 +1401,7 @@ pln( $uInfoa,'_cfgtg');
                 $returl = self::tap("/" . $selectctrl . '/index'); // if not action then use the selected controller for redirect
             }
         }
-//        pln($returl, "getReturnUrl");
+        //        pln($returl, "getReturnUrl");
 //        pln($_SESSION['lastUrl'] ?? 'NOT SET');
         //        exit;
         return $returl;
@@ -1822,7 +1822,19 @@ if ($namesArray === null) {
             }
         }
     }
-    // setmenu sync bug???  CONTINUE this later
+    public static function isAllowGrp($tgroup = '')
+    {
+        $rt = false;
+        if (
+            empty($tgroup) || $tgroup == 'guest'
+            || CSecs::IsUsrGrpComp($_SESSION["uinfo"]['usrgroup'] ?? 'guest', $tgroup, ">=")
+        ) {
+            $rt = true;
+        }
+        return $rt;
+    }
+
+    // setmenu sync bug???  CONTINUE this later, need to fix the submenu bug users vs other such as books, author (not on apps.list)
     public static function setMenu($selctrl)
     {
         $ttitle = $tgroup = $atop = $b = "";
@@ -1834,15 +1846,6 @@ if ($namesArray === null) {
         if (!empty($mnu_top)) {
             CSetting::set('menus.main', $mnu_top);
         }
-        // new tg base on buildTg
-        /*
-        // try to fix odata bug
-        $defctrl = CSetting::get('defctrl');
-        $tg = [];
-        self::buildTg($defctrl, $tg);
-        CSetting::set('tg', $tg);
-        */
-        // new tg base on buildTg
 
         // new tg base on buildTg
         $tg = [];
@@ -1863,11 +1866,8 @@ if ($namesArray === null) {
             $viewPath = CFiles::getRealViewPath($s);
             if (is_dir($viewPath) && (substr($s, 0, 1) <> "_")) {
                 $a = CSetting::get('defview');
-                if (
-                    empty($tgroup) || $tgroup == 'guest'
-                    || CSecs::IsUsrGrpComp($_SESSION["uinfo"]['usrgroup'] ?? 'guest', $tgroup, ">=")
-                ) {
-                    $mnu_apps[$s] = ['title' => $ttitle, 'path' => "/$s/$a"];
+                if (self::isAllowGrp($tgroup)) {
+                    $mnu_apps[$s] = ['title' => $ttitle, 'path' => "/$s/$a"]; // if allow add to menu
                 }
             }
         }
@@ -1876,96 +1876,11 @@ if ($namesArray === null) {
             if (!empty($mnu_apps)) {
                 $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? [];
                 CSetting::set('menus.app', $mnu_apps);
+                //                pln($mnu_apps,'mnu_apps');
             }
         }
-        // ... rest (login/logout, submenu) unchanged
-        $viewPath = CFiles::getRealViewPath($selctrl); // check to see if task has views
-        if (is_dir($viewPath) && (substr($selctrl, 0, 1) <> "_")) { // exclude _app
-            $login = "_login";
-            if (
-                empty($_SESSION["uinfo"]['usrgroup'])
-            ) {
-                $vfile = "$viewPath/$login" . CSetting::get('viewext'); // get _login.php file path
-                $loginOrOut['Login'] = (file_exists($vfile)) ? self::tap("/$selctrl/$login") : '';
-            } else {
-                $loginOrOut['Logout'] = self::tap(CSetting::get("urllogout"));
-            }
-        }
-        $fldviews = self::viewDir2Nv4Mnu($selctrl); // All menu links from the view folder
-        $smnu = array_merge($loginOrOut, $fldviews) ?? []; // add separator
-        if (empty($smnu) == false) {
-            CSetting::set('menus.sub', $smnu); // add to global taskgroup
-        }
-
     }
 
-    public static function setMenu_old_sync_bug($selctrl) // // WORK 07/02/2026 build and get topmenu and build global taskgroup master list
-    {
-        $ttitle = $tgroup = $atop = $b = "";
-        $loginOrOut = $tg = $fa = $mnu_apps = [];
-
-        $mnuHome = CCore::$_cfg["mnuhome"] ?? [];
-        $mnuCommon = CCore::$_cfg["mnucommon"] ?? [];
-        $mnu_top = array_merge($mnuHome, $mnuCommon) ?? [];
-        if (!empty($mnu_top)) {
-            CSetting::set('menus.main', $mnu_top); // getLiMenu [][] array? [-MNU_TOP-] Array ( [0] => Array ( [title] => Home [path] => / ) [1] => Array ( [title] => Contact [mailto] => email@email.com ) ) [
-//        pln($mnu_top,'mnu_top');
-        }
-
-        //        $selctrl = CSetting::get("selctrl");
-        $fa = CSetting::get('apps.' . $selctrl); // selctrl
-        foreach ($fa ?? [] as $s => $value) { // get individual app menu with group or title, why ?? Warning: foreach() argument must be of type array|object, null given
-            list($tgroup, $ttitle) = explode(',', $value);  // group,title 
-            (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
-            (empty($ttitle)) ? $ttitle = ucfirst($s) : $ttitle;
-            $actions = [strtolower(CSetting::get('defview'))]; // defview is always a valid action (task's entry point)
-            $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s)))); // view files as actions
-//            pln($actions, "s:$s a=");
-            //            $tg[$s] = $tgroup; // build a global task group by add each task group to array
-            $tg[$s] = ['group' => $tgroup, 'actions' => array_values(array_unique($actions))]; // build a global task group by add each task group & actions to array
-//            pln($tg[$s], "s:$s tg");
-
-            $viewPath = CFiles::getRealViewPath($s); // check to see if task has views
-            if (is_dir($viewPath) && (substr($s, 0, 1) <> "_")) { // exclude _app
-                $a = CSetting::get('defview');
-                if (
-                    empty($tgroup) || $tgroup == 'guest' // empty or guess => allow
-                    || CSecs::IsUsrGrpComp($_SESSION["uinfo"]['usrgroup'] ?? 'guest', $tgroup, ">=") // usrgroup is >= taskgroup => allow
-                ) {
-                    $mnu_apps[$s] = ['title' => $ttitle, 'path' => "/$s/$a"]; // it expect to be path, ALLOW added
-                } else { // not allow, skip
-                }
-            }
-        }
-        if (!empty($mnu_apps)) {
-            //            pln($mnu_apps, 'mnu');
-            CSetting::set('tg', $tg); // add to global taskgroup
-            unset($mnu_apps[$selctrl]); // remove selctrl
-//            $mnu_apps = self::rmArr1D($mnu_apps, $selctrl) ?? []; // remove selctrl 
-            if (!empty($mnu_apps)) { // check again after remove selctrl
-                $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? []; // add separator
-                CSetting::set('menus.app', $mnu_apps); // add to global menus
-            }
-        }
-
-        $viewPath = CFiles::getRealViewPath($selctrl); // check to see if task has views
-        if (is_dir($viewPath) && (substr($selctrl, 0, 1) <> "_")) { // exclude _app
-            $login = "_login";
-            if (
-                empty($_SESSION["uinfo"]['usrgroup'])
-            ) {
-                $vfile = "$viewPath/$login" . CSetting::get('viewext'); // get _login.php file path
-                $loginOrOut['Login'] = (file_exists($vfile)) ? self::tap("/$selctrl/$login") : '';
-            } else {
-                $loginOrOut['Logout'] = self::tap(CSetting::get("urllogout"));
-            }
-        }
-        $fldviews = self::viewDir2Nv4Mnu($selctrl); // All menu links from the view folder
-        $smnu = array_merge($loginOrOut, $fldviews) ?? []; // add separator
-        if (empty($smnu) == false) {
-            CSetting::set('menus.sub', $smnu); // add to global taskgroup
-        }
-    }
 
     public static function getMenu($mnu = "main") // WORK 07/02/2026, dynamic submenu from view folder
     {
@@ -2040,24 +1955,58 @@ if ($namesArray === null) {
 
     public static function getSubMenu() // WORK 07/02/2026, dynamic submenu from view folder
     {
+        $loginOrOut = [];
+        $qs = CUtil::qsValue() ?? [];
         $mnu_sub = "";
-        $selView = CSetting::get("selctrl");
-        $viewPath = CFiles::getRealViewPath($selView); // check to see if task has views
-        if (is_dir($viewPath) && (substr($selView, 0, 1) <> "_")) { // exclude _app
+
+        $selView = CSetting::get("selctrl") ?: ($qs['t'] ?? null);
+
+        $viewPath = CFiles::getRealViewPath($selView);
+        if (is_dir($viewPath) && (substr($selView, 0, 1) <> "_")) {
             $login = "_login";
             if (empty($_SESSION["uinfo"]['usrgroup'])) {
-                $loginOrOut['Login'] = self::tap("/$selView/$login");
+                $vfile = "$viewPath/$login" . CSetting::get('viewext');
+                if (file_exists($vfile)) {
+                    $loginOrOut['Login'] = self::tap("/$selView/$login");
+                }
             } else {
                 $loginOrOut['Logout'] = self::tap(CSetting::get("urllogout"));
             }
         }
+
         $fldviews = self::viewDir2Nv4Mnu($selView); // All menu links from the view folder
-        $smnu = array_merge($loginOrOut, $fldviews) ?? []; // add separator
-        if (empty($smnu) == false) {
+//    pln($fldviews,'view');
+        $fa = CSetting::get('apps.' . $selView);
+
+        $renamedViews = [];
+        foreach ($fldviews ?? [] as $s => $value) {
+            $tgroup = '';
+            $ttitle = '';
+            if (!empty($fa[$s])) {
+                $parts = explode(',', $fa[$s], 2);
+                $tgroup = $parts[0] ?? '';
+                $ttitle = $parts[1] ?? '';
+            }
+            $tgroup = $tgroup !== '' ? $tgroup : 'guest';
+            $ttitle = $ttitle !== '' ? $ttitle : ucfirst($s);
+            //pln($fa, "g: $tgroup t: $ttitle");
+            if (!self::isAllowGrp($tgroup)) { // if not allow, remove from menu
+//                pln($fldviews[$s], "remove: title: $ttitle, v: $value");
+                continue;
+            }
+            $renamedViews[$ttitle] = $value; // key is now the display title
+//        pln($renamedViews[$ttitle],"s: $s-$ttitle");
+        }
+
+        //    pln($renamedViews,'view');
+//    pln($loginOrOut,'lio');
+        $smnu = array_merge($loginOrOut, $renamedViews);
+        if (!empty($smnu)) {
             foreach ($smnu as $s => $v) {
                 $mnu_sub .= CHtml::Tag("li", CHtml::ahref($v, $s));
             }
         }
+
         return $mnu_sub;
     }
 

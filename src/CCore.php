@@ -197,7 +197,7 @@ see public\index.php step 5-8
     public static function redirect2Url($ret2URL = null)
     {
         if (is_null($ret2URL)) {
-            $ret2URL = $_SERVER['PHP_SELF'];
+            $ret2URL = $_SERVER['PHP_SELF']; // homepage with index.php
         }
         header('Location: ' . $ret2URL);
         exit;
@@ -376,7 +376,7 @@ see public\index.php step 5-8
                 $loggedin = CSecs::setUsrInfoText();
                 if (!CString::IsEmpty($loggedin)) {
                     $ret = $usrCookie; // restore usrname from session or cookie
-                    $msg = "You are login as " + $loggedin; // this set the variable for a successful login
+                    $msg = "You are login as " . $loggedin; // this set the variable for a successful login
                     static::$_usr["loggedin"] = $loggedin; // set loggedin for the current user session
                     $_SESSION["loggedin"] = $loggedin; // also set loggedin in session for consistency and future checks
                     //        pln(static::$_usr["loggedin"], "IsLoginedUser-loggedin");
