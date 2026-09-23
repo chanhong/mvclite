@@ -23,6 +23,8 @@ class CCore
     // Static (shared) properties — unchanged
     // -------------------------------------------------------------------------
 
+    public static $_rows;
+    public static $_Nv;
     public static $_usr;
     public static $_usrs;
     public static $_uprf;
@@ -61,7 +63,7 @@ class CCore
     public static function getContainer(): CContainer
     {
         if (!isset(self::$container)) {
-            throw new \RuntimeException('CCore: container has not been set. Call CCore::setContainer() at boot.');
+            throw new \RuntimeException('CCore:: container has not been set. Call CCore::setContainer() at boot.');
         }
         return self::$container;
     }
@@ -187,6 +189,11 @@ see public\index.php step 5-8
         return CDebug::debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
 
+    public static function cleanStr($iStr, $iType = "txt", $rChar = "")
+    {
+        return CUtil::cleanStr($iStr, $iType, $rChar);
+    }
+
     public static function _Logout() // Action->logout()?
     {
       CUtil::Cookie_Usr();
@@ -206,6 +213,19 @@ see public\index.php step 5-8
     public static function pln($iVar, $iStr = '', $iFormat = 'br')
     {
         print CUtil::debug($iVar, $iStr, $iFormat);
+    }
+
+    public static function MeViewPath()
+    {
+      $me = CCore::qs2nvWithDefaultValue(); // this url
+      $meUrl = CSetting::get("viewpath") . "/" . $me["t"];
+      return CUtil::v2BasePath($meUrl);
+/*
+    //     NameValueCollection me = CUtils.qs2nv(); // this url
+      NameValueCollection me = CCore.qs2nvWithDefaultValue(); // this url
+      string meUrl = getAppTxt("viewpath") + "/" + me["t"];
+      return CUtils.v2BasePath(meUrl);
+      */
     }
 
     // -------------------------------------------------------------------------
@@ -316,7 +336,7 @@ see public\index.php step 5-8
         return $selCtrl;
     }
 
-    public static function not_used_SetMenuTop(string $task = "") // need to write to CSetting->_cfg instead of CCore or CConfig
+    public static function not_used_SetMenuTop(string $task = "") // need to write to CSetting->_cfg instead of CCore::or CConfig
     {
         $fa = [];
         $mnuLinks = $mnu_apps = [];
@@ -434,7 +454,7 @@ see public\index.php step 5-8
         $usrentity = "";
         $loginType = "";
         $pw = "";
-        //      CMsg._dmsg($frm, "_Login-frm");
+        //      CMsg::_dmsg($frm, "_Login-frm");
         CUtil::Cookie_Usr(); // clear cookie
 
         if ($frm != null && count($frm) > 0 && CString::IsEmpty($frm["logintype"]) == false) {
@@ -495,6 +515,14 @@ see public\index.php step 5-8
             CUtil::Add2SessVar("alert", $msg);
         }
         return $ret;
+    }
+
+    /**
+     * Legacy name used by the converted C# login views.
+     */
+    public static function _Login($frm): bool
+    {
+        return self::CLogin(is_array($frm) ? $frm : []);
     }
 
 }

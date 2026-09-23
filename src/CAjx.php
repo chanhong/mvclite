@@ -1,9 +1,9 @@
 <?php
 
-// Assuming CDbOle, CDb, CMsg, CUtils, and CCore are defined elsewhere
+// Assuming CDb_Ole:: CDb, CMsg:: CUtil:: and CCore::are defined elsewhere
 namespace MvcLite {
 
-    class CAjx extends \CCore // Use backslash for global namespace if CCore is not in the same namespace
+    class CAjx extends \CCore// Use backslash for global namespace if CCore::is not in the same namespace
     {
         /**
          * Ajax CRUD - Update (Put)
@@ -21,7 +21,7 @@ namespace MvcLite {
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sUpdate($tName, $nvValue, $sparm); // Assuming static method call
 
-            // Assuming CMsg is available for debugging:
+            // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("update: [%s]", $strQry));
 
             \CDbPdo::oleCmdExecParam($connOlejsg, $strQry, $nvValue); // Assuming static method call
@@ -42,7 +42,7 @@ namespace MvcLite {
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sInsert($tName, $nvValue, $sparm); // Assuming static method call
 
-            // Assuming CMsg is available for debugging:
+            // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("insert: [%s]", $strQry));
 
             \CDbPdo::oleCmdExecParam($connOlejsg, $strQry, $nvValue); // Assuming static method call
@@ -60,7 +60,7 @@ namespace MvcLite {
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sDelete($tName, $sparm); // Assuming static method call
 
-            // Assuming CMsg is available for debugging:
+            // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("delete: [%s]", $strQry));
 
             \CDbPdo::oleCmdExecParam($connOlejsg, $strQry, null); // Assuming static method call
@@ -79,30 +79,40 @@ namespace MvcLite {
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sSelect($tName, $nvValue, $sparm); // Assuming static method call
 
-            // Assuming CMsg is available for debugging:
+            // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("select: [%s]", $strQry));
 
-            // original C# was: nvValue = CUtils.nv2NvLike(nvValue);
-            // $nvValue = \CUtils::nv2NvLike($nvValue); // Assuming static method call
+            // original C# was: nvValue = CUtil::nv2NvLike(nvValue);
+            // $nvValue = \CUtil:::nv2NvLike($nvValue); // Assuming static method call
 
-            // Original C# commented out: string arrStr = CDbOle.oleRdr2Json(connOlejsg, strQry, nvValue);
-            // The active line in C# was: string arrStr = CDbOle.oleRdr2Json(strQry, nvValue, dbinfo);
+            // Original C# commented out: string arrStr = CDb_Ole::oleRdr2Json(connOlejsg, strQry, nvValue);
+            // The active line in C# was: string arrStr = CDb_Ole::oleRdr2Json(strQry, nvValue, dbinfo);
             // Replicating that:
             $arrStr = \CDbPdo::oleRdr2Json($strQry, $nvValue, $dbinfo); // Assuming static method call
 
             \CUtil::outJson($arrStr); // Assuming static method call
 
         }
+        /*
+        $this->meTable = "sample_data";
+        $this->model = new CModel($this->meTable);// create a mini model class in model folder
+        $where = "1 = 1";
+        $nvValue= $this->model->_dbt("select", ['where' => $where]); 
+//        \CUtil::outJson(json_encode($nvValue)); // Assuming static method call      
+        $sparm = [ "fl"=>"*", "top"=>"1000", "where"=> $where ];
+        CAjx::Get($tname, $sparm, $nvValue, $dbinfo); 
+  */ 
+        
         public static function pDoGet($me, string $tName, string $opr, string $where): void
         {
             $me->meTable = $tName;
-            $me->model = new \CModel($me->meTable); // create a mini model class in model folder
+            $me->model = new \MvcLite\CModel($me->meTable); // pass table name into constructor
             $where = "1 = 1";
             $sparm = [["where" => $where]];
             $rows = $me->model->_dbt($opr, ['where' => $where]);
-            \CUtil::outJson(json_encode($rows)); // Assuming static method call   
-
+            \CUtil::outJson(json_encode($rows));
         }
+
 
         public static function Json($ajson): void
         {

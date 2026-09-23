@@ -351,6 +351,81 @@ class CUtil
         return $ret;
     }
 
+    /**
+     * Sanitizes a value using the legacy application's named conversion modes.
+     */
+    public static function cleanStr($iStr, $iType = "txt", $rChar = "")
+    {
+        $value = is_scalar($iStr) ? (string) $iStr : "";
+        $ret = "";
+
+        if ($value !== "") {
+            // HtmlSanitizer in the legacy application removed markup before
+            // applying the mode-specific conversion.
+            $value = strip_tags($value);
+            $type = strtolower((string) $iType);
+
+            switch ($type) {
+                case "float":
+                    $ret = number_format((float) $value, 4, ".", "");
+                    break;
+                case "amt":
+                    $ret = number_format((float) $value, 2, ".", ",");
+                    break;
+                case "int":
+                case "int32":
+                case "int64":
+                    $ret = number_format((int) $value, 0, ".", ",");
+                    break;
+                case "enc4db":
+                    $ret = htmlspecialchars(
+                        self::stripSpecChars($value),
+                        ENT_QUOTES | ENT_SUBSTITUTE,
+                        "UTF-8"
+                    );
+                    break;
+                case "dec4vw":
+                    $ret = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, "UTF-8");
+                    $ret = strip_tags($ret);
+                    break;
+                case "html":
+                    $ret = strip_tags($value);
+                    break;
+                case "url":
+                    $ret = rawurldecode($value);
+                    break;
+                case "asci":
+                    $ret = preg_replace('/[^\x00-\x7F]/', "", $value) ?? "";
+                    break;
+                case "raw":
+                    $ret = self::escQote($value);
+                    break;
+                case "string":
+                case "txt":
+                default:
+                    $ret = self::stripSpecChars($value);
+                    break;
+            }
+        }
+
+        return ($ret === "" && $rChar !== "") ? $rChar : $ret;
+    }
+
+    public static function evenOrOdd(int $iCnt): string
+    {
+        return $iCnt % 2 === 0 ? "Even" : "Odd";
+    }
+
+    private static function stripSpecChars(string $value): string
+    {
+        return self::escapeStr($value);
+    }
+
+    private static function escQote(string $value): string
+    {
+        return str_replace(["\\", "'"], ["\\\\", "\\'"], $value);
+    }
+
 
     function cleanArray($iVar)
     {
@@ -949,7 +1024,7 @@ class CUtil
     }
 
 
-    public static function getCfg(string $avar, int $rVal = 0) // WORK, need to write to CSetting->_cfg instead of CCore or CConfig
+    public static function getCfg(string $avar, int $rVal = 0) // WORK, need to write to CSetting->_cfg instead of CCore::or CConfig
     {
         $uInfo = [];
         $uInfoa = [];
@@ -1004,12 +1079,12 @@ class CUtil
     {
         $vFile = "";
         $returl = CUtil::getSessTxt("retUrl"); // set returl from timeout session
-        //      CMsg._pdmsg(returl, "getReturnViewFile");
+        //      CMsg::_pdmsg(returl, "getReturnViewFile");
         if (CString::IsEmpty($returl) == false) {
             $qsa = CUtil::qs2nv($returl);
             $_Session["retUrl"] = "";  // clear redirect MUST DO THIS
             $vFile = CCore::SetView($qsa[1], $qsa[0]); // get redirect returl view
-            //        CMsg._pdmsg(vFile, "retfile");
+            //        CMsg::_pdmsg(vFile, "retfile");
         }
         return $vFile;
     }
@@ -1369,7 +1444,7 @@ pln( $uInfoa,'_cfgtg');
         $ret = "";
         //        $mach_name = Environment . MachineName;
         $mach_name = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        //        CMsg . _pdmsg($mach_name, "mach_name");
+        //        CMsg::. _pdmsg($mach_name, "mach_name");
         $source = strtolower($user_name) . CSetting::get("hash") . $mach_name;
         $ret = CSecs::GetMd5Hash($source);
         return $ret;
@@ -1454,7 +1529,7 @@ pln( $uInfoa,'_cfgtg');
     }
 
 
-    // Assuming CUtils, CSecs, and a way to retrieve NameValueCollection equivalent (e.g., an array of strings for keys and their associated values)
+    // Assuming CUtil:: CSecs, and a way to retrieve NameValueCollection equivalent (e.g., an array of strings for keys and their associated values)
 // You'll need to implement these helper functions and data structures in PHP based on your C# implementations.
 
     /**
@@ -1485,7 +1560,7 @@ pln( $uInfoa,'_cfgtg');
                 foreach ($mnu as $s => $mnuValue) { // Assuming $mnu is an associative array from viewDir2Nv4Mnu
                     // echo CMsg::_msg($mnuType . "-" . $s, "m-i"); // for debugging
                     if ($s !== null && strlen($s) > 0) {
-                        // CUtils::mnu_s2a needs to be implemented in PHP
+                        // CUtil:::mnu_s2a needs to be implemented in PHP
                         // It should take the string from $mnu[$s] and the key $s, and return an array of strings (menu link parts)
                         $lnka = CUtil::mnu_s2a($mnuValue, $s);
 
@@ -1495,7 +1570,7 @@ pln( $uInfoa,'_cfgtg');
                             CSecs::isPublicAccess4Mnu($lnka, $key) === true ||
                             CSecs::isUsrHasAccess2Mnu($lnka, $key) === true
                         ) {
-                            // CUtils::a2Li needs to be implemented in PHP
+                            // CUtil:::a2Li needs to be implemented in PHP
                             // It should take the $lnka array and return an HTML list item string (e.g., <li><a href="...">...</a></li>)
                             $sbx .= CUtil::a2Li($lnka);
                         }
@@ -1511,7 +1586,7 @@ pln( $uInfoa,'_cfgtg');
     }
     /**
      * Build submenu <li> HTML from a name=>title map.
-     * Mirrors C#: CUtils.viewNameDir2Submnu()
+     * Mirrors C#: CUtil::viewNameDir2Submnu()
      */
     public static function ai_viewNameDir2Submnu(array $fa): string // not working
     {
@@ -1534,7 +1609,7 @@ pln( $uInfoa,'_cfgtg');
     /**
      * Return the current active controller name (lowercased).
      * Reads from CConfig 'info.selctl'.
-     * Mirrors C#: CCore.getSelectedViewSet()
+     * Mirrors C#: CCore::getSelectedViewSet()
      */
     public static function ai_getSelectedViewSet(): string
     {
@@ -1557,7 +1632,7 @@ pln( $uInfoa,'_cfgtg');
     }
     /**
      * Get a session variable as an array.
-     * Mirrors C#: CUtils.getSessNv()
+     * Mirrors C#: CUtil::getSessNv()
      */
     public static function getSessNv(string $key): array
     {
@@ -1602,7 +1677,7 @@ pln( $uInfoa,'_cfgtg');
         if ($lnka != null) {
             if (strlen($lnka[2]) > 0) {
                 $iPath = self::v2BasePath(CSetting::get("imgpath"));
-                $img = "<img src=\"" + $iPath + "/" + $lnka[2] + "\">";
+                $img = "<img src=\"" . $iPath . "/" . $lnka[2] . "\">";
             }
             $retStr = "<a href=\"" . $lnka[0] . "\"" . $lnka[1] . ">" . $img . $lnka[3] . "</a>";
         }
@@ -1886,7 +1961,7 @@ if ($namesArray === null) {
     {
         $rmnu = "";
         $sMnu = CSetting::get("menus.$mnu");
-        //        pln($sMnu,'menu');
+//                pln($sMnu,'menu');
         if (empty($sMnu) == false && empty($mnu) == false) {
             switch ($mnu) {
                 case "sub":
@@ -2040,7 +2115,7 @@ if ($namesArray === null) {
         $lnka = null;
         $sb = "";
         // process each view file and link
-        //      CMsg._pdmsg(mnu, "mnu");
+        //      CMsg::_pdmsg(mnu, "mnu");
         //[mnu]:(jv=[http://localhost:83/ejvnetdev/?t=jv],jvadm=[http://localhost:83/ejvnetdev/?t=jvadm],jvapv=[http://localhost:83/ejvnetdev/?t=jvapv],jvtpl=[http://localhost:83/ejvnetdev/?t=jvtpl],jvinq=[http://localhost:83/ejvnetdev/?t=jvinq],jendo=[http://localhost:83/ejvnetdev/?t=jendo],jsgrid=[http://localhost:83/ejvnetdev/?t=jsgrid],ko=[http://localhost:83/ejvnetdev/?t=ko])
         foreach ($mnu as $s) {
             //                    pln($s, "Mnu2LiSec-s");
@@ -2049,7 +2124,7 @@ if ($namesArray === null) {
             {
                 $lnka = self::mnu_s2a($mnu[$s], $s); // http:\//localhost:83/ejvnetdev/test, test
                 //[lnka]:(0=[http://localhost:83/ejvnetdev/?t=jvadm],1=[],2=[],3=[JV Admin]) 
-                //      CMsg._pdmsg(lnka, "lnka");
+                //      CMsg::_pdmsg(lnka, "lnka");
                 if (
                     CSecs::isPublicAccess4Mnu($lnka, $mnuType) == true
                     || CSecs::isUsrHasAccess2Mnu($lnka, $mnuType) == true
@@ -2102,7 +2177,8 @@ if ($namesArray === null) {
         }
         exit; // ensures nothing else is sent after the JSON payload
     }
+    public static function imgPath()
+    {
+      return self::v2BasePath(CSetting::get("imgpath"));
+    }    
 }
-
-
-

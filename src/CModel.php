@@ -7,7 +7,7 @@
  */
 namespace MvcLite;
 
-class CModel extends CCore {
+class CModel extends CCore{
 
     public function __construct($tname, $id = null) {
         
@@ -72,11 +72,11 @@ class CModel extends CCore {
             // Iterate through the schema keys (column names)
             foreach (array_keys($nvSchema) as $ka) { // Using array_keys to iterate through schema column names
                 // 'cleanStr' needs to be defined. It should take the value, schema type, and determine cleaning strategy.
-                // The original C# had `cleanStr(rForm[ka], nvSchema[ka])` and a commented out `CUtils.cleanStr(..., decode)`.
-                // We'll use the first version and assume 'cleanStr' is a static method available in CUtils or globally.
+                // The original C# had `cleanStr(rForm[ka], nvSchema[ka])` and a commented out `CUtil::cleanStr(..., decode)`.
+                // We'll use the first version and assume 'cleanStr' is a static method available in CUtil::or globally.
                 // If `nvSchema[ka]` contains the data type or other cleaning hints.
                 
-                // Assuming CUtils::cleanStr is the target for the cleaning logic.
+                // Assuming CUtil:::cleanStr is the target for the cleaning logic.
                 // The 'decode' parameter from the commented C# code is omitted as it's not in the uncommented version.
                 if (isset($rForm[$ka])) { // Only process if the key exists in the request form
                     $cleanedValue = \CUtil::cleanStr($rForm[$ka], $nvSchema[$ka] ?? null); // Pass schema type hint, default to null if not found
@@ -87,8 +87,8 @@ class CModel extends CCore {
         }
 
         // The purpose of 'decode' is unclear without context. The uncommented C# code
-        // does not pass a 'decode' parameter to CUtils.cleanStr. If 'decode' was
+        // does not pass a 'decode' parameter to CUtil::cleanStr. If 'decode' was
         // meant to control encoding/decoding, it would need to be passed as an argument
-        // to this PHP function as well and handled within CUtils::cleanStr.
+        // to this PHP function as well and handled within CUtil:::cleanStr.
     }
 

@@ -431,7 +431,7 @@ public function U404($args, $shortNameRte) // router controller and router short
 }    
     public function old_U404($args, $shortNameRte) // router controller and router shortname
     {
-        // redirect Warning: Cannot modify header information - headers already sent by (output started at Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CUtil.php:1110) in Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CCore.php on line 195
+        // redirect Warning: Cannot modify header information - headers already sent by (output started at Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CUtil.php:1110) in Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CCore::php on line 195
         $p404 = CConfig::$_cfg['routes']['page404'];
         $task = $args['t'];
         $action = $args['a'];

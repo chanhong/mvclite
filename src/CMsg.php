@@ -4,20 +4,27 @@ namespace MvcLite;
 
 /**
  * Required dependencies:
- * - CCore class (must be defined in the Co namespace or imported)
+ * - CCore::class (must be defined in the Co namespace or imported)
  * - CUtil class (must provide static methods: getSessTxt, getAppTxt, IsDebug)
  * - CSecs class (if the commented debug logic is ever uncommented)
  */
 
 class CMsg extends CCore
 {
+        public static function _pdmsg($ret,$mvar="fbdmsg")
+    {
+      $ret = "";
+        $ret = self::_dmsg($ret, $mvar);
+      return $ret;
+    }
+
     /**
      * @param string $ret
      */
-    public static function _dmsg($ret,$mvar="fbdmsg")
+    public static function _dmsg($ret,$mvar="fbdmsg"): string
     {
         //            self::_appdmsg2AppState($ret);
-        self::_appdmsg2Sess($ret,$mvar);
+        return self::_appdmsg2Sess($ret,$mvar);
     }
 
     /**
@@ -32,6 +39,7 @@ class CMsg extends CCore
         }
         // must use this to avoid un-initialize error
         $_SESSION[$mvar] = $prev . $ret;
+        return $_SESSION[$mvar];
     }
 
 

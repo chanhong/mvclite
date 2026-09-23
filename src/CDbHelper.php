@@ -142,8 +142,8 @@ class CDbHelper
      *                prefixes it with an operator (AND / OR).
      *
      *  C# logic:
-     *      if (!CString.IsEmpty(str)) {
-     *          if (!CString.IsEmpty(opr))
+     *      if (!CString::IsEmpty(str)) {
+     *          if (!CString::IsEmpty(opr))
      *              ret = $" {opr} ({str})";
      *          else
      *              ret = $" ({str})";

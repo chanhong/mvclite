@@ -13,7 +13,7 @@ namespace MvcLite;
  * @author chanhong
  */
 
-use Mvclite\CCore;
+use MvcLite\CCore;
 
 class CDebug
 {
