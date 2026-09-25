@@ -228,6 +228,11 @@ see public\index.php step 5-8
       */
     }
 
+        public static function _DbEnv(string $dbCfgName = "dbprod") // default to main db
+    {
+      return $dbCfgName . self::getAppTxt("env");
+    }
+
     // -------------------------------------------------------------------------
     // Instance methods — unchanged
     // -------------------------------------------------------------------------

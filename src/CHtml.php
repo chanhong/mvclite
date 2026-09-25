@@ -318,7 +318,7 @@ class CHtml
         $sone = sprintf("<tr class=\"%s\">", $clsName["tcls"]);
         $sbh .= $sone;
         foreach (array_keys($fName) as $s) {
-            $ka = CUtil::Str2a(',', $fName[$s]); // get value of fName[s]
+            $ka = CUtil::Str2a(',', isset($fName[$s]) ? (string)$fName[$s][0] : ""); // get value of fName[s]
             $stitle = (strlen($ka[0]) > 0) ? $ka[0] : CString::ProperCase($s);
             $sone = sprintf("<th class=\"%s\">%s</th>", htmlspecialchars($clsName["tcls"], ENT_QUOTES, 'UTF-8'), htmlspecialchars($stitle, ENT_QUOTES, 'UTF-8'));
             $sbh .= $sone;
@@ -331,9 +331,9 @@ class CHtml
             $sbr .= $sone;
             $rNv = CUtil::dict2nv($r); // convert Nv to get field name
             foreach (array_keys($fName) as $s) {
-                $ka = CUtil::Str2a(',', $fName[$s]); // get value of fName[s]
-                $salign = (strlen($ka[1]) > 0) ? $ka[1] : "center";
-                $sone = sprintf("<td align=\"%s\">%s</td>", htmlspecialchars($salign, ENT_QUOTES, 'UTF-8'), htmlspecialchars($rNv[$s], ENT_QUOTES, 'UTF-8'));
+                $ka = CUtil::Str2a(',', isset($fName[$s]) ? (string)$fName[$s][0] : ""); // get value of fName[s]
+                $salign = (isset($ka[1]) && strlen($ka[1]) > 0) ? $ka[1] : "center";
+                $sone = sprintf("<td align=\"%s\">%s</td>", htmlspecialchars($salign, ENT_QUOTES, 'UTF-8'), htmlspecialchars($rNv[$s] ?? "", ENT_QUOTES, 'UTF-8'));
                 $sbr .= $sone;
             }
         }
