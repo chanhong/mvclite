@@ -1173,29 +1173,35 @@ class CUtil
         return $ret . $cqs;
     }
 
-    public static function setActiveCtrl_no_list($qsa = [])
+    public static function setActiveCtrl($qsa = []) // work with users,books,authors
     {
-        //        pln($qsa, "qsa");
+        $tsk = "";
+//        pln($qsa, "setActiveCtrl:qsa");
+//        pln(CSetting::get('selctrl'), "setActiveCtrl-IN");
         if ($qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
-            CSetting::set('selctrl', $qsa['t']);         // set selected active controller       
+            $tsk = $qsa['t'];
+            CSetting::set('selctrl', $tsk);         // set selected active controller   
+            $sel = CSetting::get('selctrl');
+            //            pln($sel, "B-setActiveCtrl-IN s:$sel=t:$tsk");
+
         } else {
+            //            pln($qsa, "ELSE setActiveCtrl");
             if (CSetting::get('selctrl') == '') {
                 CSetting::set('selctrl', CSetting::get('defctrl'));         // set defctrl as active controller       
             }
         }
+        $sel = CSetting::get('selctrl');
+        //        pln($sel, "A-setActiveCtrl-IN s:$sel=t:$tsk");
         //        pln(CSetting::get('selctrl'), "setActiveCtrl");
         //        pln(CSetting::get('takey'), "setActiveCtrl-takey");
-        self::setMenu(CSetting::get('selctrl'));
+        self::setMenu($sel);
         //        pln(CSetting::$_stg['tg'],'setActiveCtrl-tg');
-
     }
 
-    public static function setActiveCtrl($qsa = []) // include apps.list
+    public static function setActiveCtrl_list($qsa = []) // include apps.list broke users,books,author menu
     {
         //            pln($qsa, "setActiveCtrl-qsa");
-
         $fa = [];
-
         //        $apps = CSetting::get('apps');
         $apps = CSetting::get('apps.list'); // fix for now until change over to new []
         if ($apps != null && $qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
@@ -1214,9 +1220,10 @@ class CUtil
             }
         }
         //        CCore::SetMenuTop(); // set default for top menu, add to get
-//        pln(CSetting::get('selctrl'), "setActiveCtrl");
+        $sel = CSetting::get('selctrl');
+//        pln($sel, "setActiveCtrl:$sel");
         //        pln(CSetting::get('takey'), "setActiveCtrl-takey");
-        self::setMenu(CSetting::get('selctrl'));
+        self::setMenu($sel);
         //    self::captureLastUrl($qsa);   // NEW
 //    pln($_SESSION['lastUrl'] ?? 'NOT SET', 'lastUrl-check');
     }
@@ -1840,31 +1847,6 @@ if ($namesArray === null) {
         return $ret;
     }
 
-    private static function buildTg_wearning($ctrl, &$tg, $visited = [])
-    {
-        if (in_array($ctrl, $visited))
-            return; // guard against circular app refs
-        $visited[] = $ctrl;
-
-        $taskDir = CSetting::get('apps.' . $ctrl) ?? [];
-        foreach ($taskDir as $s => $value) {
-            if (isset($tg[$s]))
-                continue; // already registered by a higher-level group
-
-            list($tgroup, $ttitle) = explode(',', $value);
-            (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
-
-            $actions = [strtolower(CSetting::get('defview'))];
-            $actions = array_merge($actions, array_map('strtolower', array_keys(self::viewDir2Nv4Mnu($s))));
-            $tg[$s] = ['group' => $tgroup, 'actions' => array_values(array_unique($actions))];
-
-            // if this task name is itself a nested app-group (e.g. 'learn' owning 'jendo'),
-            // recurse into it so its sub-apps become reachable too
-            if (CSetting::get('apps.' . $s) !== null) {
-                self::buildTg($s, $tg, $visited);
-            }
-        }
-    }
     private static function buildTg($ctrl, &$tg, $visited = [])
     {
         if (in_array($ctrl, $visited))
@@ -1951,7 +1933,8 @@ if ($namesArray === null) {
             if (!empty($mnu_apps)) {
                 $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? [];
                 CSetting::set('menus.app', $mnu_apps);
-                //                pln($mnu_apps,'mnu_apps');
+                //                pln($mnu_apps, "mnu_apps-$selctrl");
+//                pln(CSetting::get('menus.app'), "mnu_apps");
             }
         }
     }
@@ -1961,7 +1944,7 @@ if ($namesArray === null) {
     {
         $rmnu = "";
         $sMnu = CSetting::get("menus.$mnu");
-//                pln($sMnu,'menu');
+        //                pln($sMnu,'menu');
         if (empty($sMnu) == false && empty($mnu) == false) {
             switch ($mnu) {
                 case "sub":
@@ -2038,7 +2021,7 @@ if ($namesArray === null) {
 
         $viewPath = CFiles::getRealViewPath($selView);
         if (is_dir($viewPath) && (substr($selView, 0, 1) <> "_")) {
-            $login = "_login";
+            $login = CSetting::get("login"); // dynamic _login in setting
             if (empty($_SESSION["uinfo"]['usrgroup'])) {
                 $vfile = "$viewPath/$login" . CSetting::get('viewext');
                 if (file_exists($vfile)) {
@@ -2179,6 +2162,6 @@ if ($namesArray === null) {
     }
     public static function imgPath()
     {
-      return self::v2BasePath(CSetting::get("imgpath"));
-    }    
+        return self::v2BasePath(CSetting::get("imgpath"));
+    }
 }
