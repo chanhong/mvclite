@@ -1173,10 +1173,10 @@ class CUtil
         return $ret . $cqs;
     }
 
-    public static function setActiveCtrl($qsa = []) // work with users,books,authors
+    public static function setActiveCtrl_original($qsa = []) // work with users,books,authors, KEEP for reference
     {
         $tsk = "";
-//        pln($qsa, "setActiveCtrl:qsa");
+        //        pln($qsa, "setActiveCtrl:qsa");
 //        pln(CSetting::get('selctrl'), "setActiveCtrl-IN");
         if ($qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
             $tsk = $qsa['t'];
@@ -1198,35 +1198,29 @@ class CUtil
         //        pln(CSetting::$_stg['tg'],'setActiveCtrl-tg');
     }
 
-    public static function setActiveCtrl_list($qsa = []) // include apps.list broke users,books,author menu
+    public static function setActiveCtrl($qsa = []) // use view folder to validate select task, SAFER
     {
-        //            pln($qsa, "setActiveCtrl-qsa");
-        $fa = [];
-        //        $apps = CSetting::get('apps');
-        $apps = CSetting::get('apps.list'); // fix for now until change over to new []
-        if ($apps != null && $qsa != null && isset($qsa['t']) && !empty($qsa['t'])) { // should be t instead of 0
-            $fa = explode(',', $apps);
-            $mnu_apps = self::sName2Mnu($fa);
-            //                        pln($mnu_apps, "mnu_apps");
+        if ($qsa != null && isset($qsa['t']) && !empty($qsa['t'])) {
             $tsk = $qsa['t'];
-            //            pln($tsk, "tsk");
-            if (isset($mnu_apps[$tsk]) && $mnu_apps != null && $mnu_apps[$tsk] != null) {
-                CSetting::set('selctrl', $tsk);         // set selected active controller       
+
+            // validate directly against the controller's own view path,
+            // not against apps.list (which is a taskgroup subset, not a nav registry)
+            $viewPath = CFiles::getRealViewPath($tsk);
+            if (is_dir($viewPath) && substr($tsk, 0, 1) <> "_") {
+                CSetting::set('selctrl', $tsk);         // set selected active controller
+            } else {
+                CSetting::set('selctrl', CSetting::get('defctrl'));  // bad/unknown $tsk — reset to a known-good default
             }
-            //             self::setLoginUrl(); // each view has its own login
         } else {
             if (CSetting::get('selctrl') == '') {
-                CSetting::set('selctrl', CSetting::get('defctrl'));         // set defctrl as active controller       
+                CSetting::set('selctrl', CSetting::get('defctrl'));         // set defctrl as active controller
             }
         }
-        //        CCore::SetMenuTop(); // set default for top menu, add to get
+
         $sel = CSetting::get('selctrl');
-//        pln($sel, "setActiveCtrl:$sel");
-        //        pln(CSetting::get('takey'), "setActiveCtrl-takey");
         self::setMenu($sel);
-        //    self::captureLastUrl($qsa);   // NEW
-//    pln($_SESSION['lastUrl'] ?? 'NOT SET', 'lastUrl-check');
     }
+
 
     public static function captureLastUrl($qsa)
     {
