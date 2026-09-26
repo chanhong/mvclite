@@ -494,8 +494,10 @@ public function U404($args, $shortNameRte) // router controller and router short
         // WORK 08/23: tg (built fresh every request by setMenu(), gated by usrgroup, sourced from the
         // master task directory - not $selctrl) is the single source of truth for t=/a= access.
         // Router itself (t=router) is exempt - it's not a task.
-        if (self::isNotTG($args, $shortNameRte) == true)
-            self::U404($args, $shortNameRte); // 404
+        if (self::isNotTG($args, $shortNameRte) == true) {
+            $ctl = new self();
+            $ctl->sendToLoginPage($args['a'] ?? '');
+        }
 
         //        print (print_r($this->stg->get('tg'), true));
         switch (true) {
