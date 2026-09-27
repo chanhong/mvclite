@@ -101,11 +101,21 @@ class CHtml
                 case "path":
                     $href = ' '.self::href($value);  // ← now '/' will be processed
                     break;
+                case "href":
+                    $href = ' href="' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
+                    break;
+                case "text":
+                    // the link's visible content — takes priority over 'title' below, regardless
+                    // of which key appears first in the array
+                    $imgortext = htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+                    break;
                 case "title_hlp":
                     $title = $imgortext = $text = ucfirst($value);
                     break;
                 case "title":
-                    $imgortext = ucfirst($value); // will catch [['title'=>'=>']]) create <a >=></a> for menu separtor
+                    if ($imgortext === '') {
+                        $imgortext = ucfirst($value); // fallback display text only when no explicit 'text' was given (e.g. menu separators: [['title'=>'=>']])
+                    }
                     $title = " title=\"" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
                     break;
                 case "target":
@@ -119,7 +129,7 @@ class CHtml
                         $imgortext = self::href($value);
                     break;
                 default:
-                    $buff .= "$key='$value'";
+                    $buff .= " $key=\"" . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
             }
         }
         $ret = '<a' . $href . $confirm . $title. $target . rtrim($buff) . '>' . $imgortext . '</a>';
