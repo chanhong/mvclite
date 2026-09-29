@@ -5,6 +5,13 @@ namespace MvcLite {
 
     class CAjx extends \CCore// Use backslash for global namespace if CCore::is not in the same namespace
     {
+        // DIAGNOSTIC: CDb::nv2sXxx() returned '' -> PDO "prepare(): query must not be empty"; say which call and what it was given.
+        private static function chk(string $strQry, string $what, string $tName, array $sparm): void
+        {
+            if (trim($strQry) === '')
+                throw new \Exception($what . ": empty SQL for table [" . $tName . "] sparm=" . json_encode($sparm));
+        }
+
         /**
          * Ajax CRUD - Update (Put)
          *
@@ -20,6 +27,7 @@ namespace MvcLite {
 
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sUpdate($tName, $nvValue, $sparm); // Assuming static method call
+            self::chk($strQry, "update", $tName, $sparm);
 
             // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("update: [%s]", $strQry));
@@ -41,6 +49,7 @@ namespace MvcLite {
 
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sInsert($tName, $nvValue, $sparm); // Assuming static method call
+            self::chk($strQry, "insert", $tName, $sparm);
 
             // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("insert: [%s]", $strQry));
@@ -59,6 +68,7 @@ namespace MvcLite {
         {
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sDelete($tName, $sparm); // Assuming static method call
+            self::chk($strQry, "delete", $tName, $sparm);
 
             // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("delete: [%s]", $strQry));
@@ -78,11 +88,12 @@ namespace MvcLite {
         {
             $connOlejsg = \CDbPdo::oleDbEnvConn($dbinfo); // Assuming static method call
             $strQry = \CDb::nv2sSelect($tName, $nvValue, $sparm); // Assuming static method call
+            self::chk($strQry, "select", $tName, $sparm);
 
             // Assuming CMsg::is available for debugging:
             // \CMsg::_pdmsg(sprintf("select: [%s]", $strQry));
 
-            // original C# was: nvValue = CUtil::nv2NvLike(nvValue);
+            // original C# was: nvValue = CDbHelper::nv2NvLike(nvValue);
             // $nvValue = \CUtil:::nv2NvLike($nvValue); // Assuming static method call
 
             // Original C# commented out: string arrStr = CDb_Ole::oleRdr2Json(connOlejsg, strQry, nvValue);

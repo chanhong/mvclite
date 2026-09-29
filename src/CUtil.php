@@ -2158,4 +2158,77 @@ if ($namesArray === null) {
     {
         return self::v2BasePath(CSetting::get("imgpath"));
     }
+
+    /**
+     * Ported from CUtils.CnvDate(). Wraps a column in CONVERT(DATETIME, col); when $value is
+     * non-empty, the FIRST argument is treated as the date literal and quoted (as in the C#,
+     * GetFOVDate passes the date as $iVar). Single quotes are doubled, which the C# did not do.
+     */
+    public static function CnvDate($iVar, $value = "")
+    {
+        if ($value !== "" && $value !== null)
+            return "CONVERT(DATETIME, '" . str_replace("'", "''", (string) $iVar) . "')";
+        return "CONVERT(DATETIME, " . $iVar . ")";
+    }
+
+    /**
+     * Ported from CUtils.GetFOVDate(): "CONVERT(DATETIME, field) <op> CONVERT(DATETIME, 'date')".
+     * NOTE: CJvAdm uses CJv::GetConvertedDate() instead, which normalises to Y-m-d.
+     */
+    public static function GetFOVDate($fieldName, $opr, $strDateValue)
+    {
+        return self::FOV(self::CnvDate($fieldName), $opr, self::CnvDate($strDateValue, "value"), "Date");
+    }
+
+    /**
+     * Ported from CUtils.FOV() (field / operator / value). "?" keeps the placeholder form;
+     * "like" wraps the value in %...%; a non-empty $ilFunc means the value is an inline
+     * SQL function and is emitted unquoted.
+     */
+    public static function FOV($source, $op, $value = "?", $ilFunc = "")
+    {
+        if ($value === "?")
+            return "$source $op ?";
+        if (strtolower($op) === "like")
+            return "$source $op '%" . str_replace("'", "''", (string) $value) . "%'";
+        if (!CString::IsEmpty($ilFunc))
+            return "$source $op $value";
+        return "$source $op '" . str_replace("'", "''", (string) $value) . "'";
+    }
+
+    /**
+     * Ported from CUtils.Validate() in the C# source. Only the "password"
+     * case is currently exercised (MJvAdm::UpdateUser / CreateUser); the
+     * "empty"/"email"/"full_email" cases are kept for parity with the C#
+     * version but are effectively unused since CJv::JvValidate("email", ...)
+     * already covers email checks elsewhere in this codebase.
+     */
+    public static function Validate($iType, $iStr)
+    {
+        switch ($iType) {
+            case 'empty':
+                return !CString::IsEmpty($iStr);
+            case 'full_email':
+            case 'email':
+                $ok = (bool) preg_match(
+                    '/^[^0-9][A-Za-z0-9_]+([.][A-Za-z0-9_]+)*[@][A-Za-z0-9_]+([.][A-Za-z0-9_]+)*[.][A-Za-z]{2,4}/',
+                    (string) $iStr
+                );
+                if (
+                    CString::IsEmpty($iStr)
+                    || preg_match('/fullemail|nobody|somebody|no-?exist/i', (string) $iStr)
+                ) {
+                    $ok = false;
+                }
+                return $ok;
+            case 'password':
+                if (!CString::IsEmpty($iStr) && strlen((string) $iStr) >= 6) {
+                    return true;
+                }
+                self::Add2SessVar('feedback', '  Sorry -- the password must be at least 6 characters. ');
+                return false;
+            default:
+                return false;
+        }
+    }
 }

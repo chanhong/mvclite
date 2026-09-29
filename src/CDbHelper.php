@@ -179,21 +179,23 @@ if (php_sapi_name() === 'cli') {
         'a'          => 'also removed',
     ];
 
-    // 1️⃣ nv2NvLike – add % wildcards
-    $wildcards = self::nv2NvLike($filters);
-    // $wildcards => ['first_name' => '%John%', 'last_name' => '%Doe%']
+    // 1️⃣ nv2NvLike – add % wildcards to every non-empty value.
+    // NOTE: unlike nv2sLike(), this does NOT strip 't'/'a' — they're
+    // wildcarded here too and only dropped downstream by nv2sLike().
+    $wildcards = CDbHelper::nv2NvLike($filters);
+    // $wildcards => ['first_name' => '%John%', 'last_name' => '%Doe%', 't' => '%should be removed%', 'a' => '%also removed%']
 
-    // 2️⃣ nv2sLike – build a WHERE clause fragment
+    // 2️⃣ nv2sLike – build a WHERE clause fragment (this step drops 't'/'a')
     // Safer prepared‑statement version (uses "?")
-    $wherePrepared = self::nv2sLike($filters, '?', 'AND');
+    $wherePrepared = CDbHelper::nv2sLike($filters, '?', 'AND');
     // $wherePrepared => "first_name LIKE ? AND last_name LIKE ?"
 
     // Direct‑value (dangerous) version
-    $whereDirect = self::nv2sLike($filters, '', 'OR');
+    $whereDirect = CDbHelper::nv2sLike($filters, '', 'OR');
     // $whereDirect => "first_name LIKE '%John%' OR last_name LIKE '%Doe%'"
 
     // 3️⃣ andOrNot – wrap expression
-    $wrapped = self::andOrNot($whereDirect, 'AND');
+    $wrapped = CDbHelper::andOrNot($whereDirect, 'AND');
     // $wrapped => " AND (first_name LIKE '%John%' OR last_name LIKE '%Doe%')"
 
     // Output for demonstration

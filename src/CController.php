@@ -471,6 +471,7 @@ public function U404($args, $shortNameRte) // router controller and router short
                 || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
                 || !in_array(strtolower($action), $entry[$task]['actions'] ?? [], true);
         }
+        /*
    pln([
        'task' => $task,
        'action' => $action,
@@ -478,17 +479,20 @@ public function U404($args, $shortNameRte) // router controller and router short
        'ugrp' => $ugrp,
        'tgrp' => $tgrp,
        'notTnTg' => $notTnTg,
-   ], 'isNotTG-debug');        
+   ], 'isNotTG-debug');  
+   */      
         return $notTnTg;
     }
 
     // bef DI   public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     public function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     {
-pln([
+/*
+    pln([
     'session_id' => session_id(),
     'uinfo_at_entry' => $_SESSION['uinfo'] ?? 'MISSING',
 ], 'doRouter-entry');        
+*/
         //                pln($this->stg->get('tg'), "tg");
 
         $shortNameRte = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5

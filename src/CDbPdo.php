@@ -165,7 +165,14 @@ class CDbPdo extends CDb
     public static function oleRdrParam(\PDO $conn, string $strQry, ?array $nvValue = null): \PDOStatement
     {
         $stmt = self::oleCmdParam($conn, $strQry, $nvValue);
-        $stmt->execute();
+        try {
+            $stmt->execute();
+        } catch (\PDOException $e) {
+            // DIAGNOSTIC: show which SQL failed (ODBC only says "out-of-range value").
+            $ex = new \PDOException($e->getMessage() . ' || SQL: ' . $strQry);
+            $ex->errorInfo = $e->errorInfo;
+            throw $ex;
+        }
         return $stmt;
     }
 

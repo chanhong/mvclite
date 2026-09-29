@@ -124,9 +124,12 @@ class CHtml
                 case "mailto":
                     $href = " href=\"mailto:" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
                     break;
+                case "file":
+                    $href = " href=\"file:" . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
+                    break;
                 case "img":
                     if (!empty($value))
-                        $imgortext = self::href($value);
+                        $imgortext = self::Img($value);
                     break;
                 default:
                     $buff .= " $key=\"" . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
