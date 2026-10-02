@@ -12,12 +12,19 @@ class CHtml
 
     public static function FrmBeg($postUrl = "", $cls = "")
     {
-        return sprintf("<form method=\"post\" action=\"%s\" class=\"%s\">", htmlspecialchars($postUrl, ENT_QUOTES, 'UTF-8'), htmlspecialchars($cls, ENT_QUOTES, 'UTF-8'));
+        return sprintf(
+            "<form method=\"post\" action=\"%s\" class=\"%s\">",
+            htmlspecialchars((string) ($postUrl ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            htmlspecialchars((string) ($cls ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        );
     }
 
     public static function FrmEnd($retUrl = "?")
     {
-        return sprintf("<input name=\"rurl\" type = \"hidden\" value=\"%s\"></form>", htmlspecialchars($retUrl, ENT_QUOTES, 'UTF-8'));
+        return sprintf(
+            "<input name=\"rurl\" type = \"hidden\" value=\"%s\"></form>",
+            htmlspecialchars((string) ($retUrl ?? '?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        );
     }
 
     public static function Tag_cs($iTag, $iTitle, $iTip = "") // bad???
@@ -30,16 +37,60 @@ class CHtml
     }
     public static function Tag($iTag, $iTitle, $iTip = "")
     {
-        $cTag = strtolower($iTag);
-        $stip = (CString::IsEmpty($iTip) == false)
-            ? sprintf(" title=\"%s\"", $iTip)
+        $cTag = self::safeTagName($iTag);
+        $stip = self::titleAttribute($iTip);
+        $title = htmlspecialchars((string) $iTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return sprintf("<%s%s>%s</%s>", $cTag, $stip, $title, $cTag);
+    }
+
+    public static function TagWithHtml($iTag, $html, $iTip = "")
+    {
+        $cTag = self::safeTagName($iTag);
+        $stip = self::titleAttribute($iTip);
+        return sprintf("<%s%s>%s</%s>", $cTag, $stip, $html, $cTag);
+    }
+
+    private static function safeTagName($iTag): string
+    {
+        $tag = strtolower((string) $iTag);
+        if (!preg_match('/^[a-z][a-z0-9-]*$/', $tag)) {
+            throw new \InvalidArgumentException('Invalid HTML tag name.');
+        }
+
+        return $tag;
+    }
+
+    private static function titleAttribute($iTip): string
+    {
+        return CString::IsEmpty($iTip) == false
+            ? sprintf(" title=\"%s\"", htmlspecialchars((string) $iTip, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'))
             : "";
-        return sprintf("<%s%s>%s</%s>", $cTag, $stip, $iTitle, $cTag);
     }
 
     public static function Img($iVar)
     {
-        return "<img class=\"icon\" src=\"" . htmlspecialchars($iVar, ENT_QUOTES, 'UTF-8') . "\">";
+        $raw = trim((string) $iVar);
+        $src = $raw;
+
+        if (preg_match('/<\s*img\b[^>]*\s+src\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))[^>]*>/is', $raw, $matches)) {
+            $src = $matches[1] ?? $matches[2] ?? $matches[3] ?? $raw;
+        }
+
+        $src = trim($src);
+        if ($src === '' || preg_match('/^\s*(?:javascript|vbscript|data)\s*:/i', $src) || str_contains($src, 'onerror=')) {
+            $src = 'about:blank';
+        }
+
+        if (preg_match('/^(?:[a-z]+:\s*)?\/?(?:etc|var|proc|root|home)\//i', $src) || preg_match('/^\/+etc\//i', $src)) {
+            $src = 'about:blank';
+        }
+
+        if (preg_match('/[<>"\']/', $src)) {
+            $src = preg_replace('/[<>"\']+/', '', $src) ?? '';
+        }
+
+        $encoded = htmlspecialchars($src, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return '<img class="icon" src="' . $encoded . '">';
     }
 
     public static function JsxSrc($file)
@@ -92,50 +143,58 @@ class CHtml
         if (empty($iVar) or (!is_array($iVar)))
             return '';  // ← return empty string, not null //Warning: Array to string conversion
 
-        $confirm = $target = $title = $imgortext = $buff = $href = '';  // ← initialize $href here!
+        $confirm = $target = $title = $imgortext = $buff = $href = '';
         foreach ($iVar as $key => $value) {
-            switch ($key) {  // ← remove the empty() check so '/' is not skipped
+            switch ($key) {
                 case "confirm":
                     $confirm = self::jsConfirm('Y');
                     break;
                 case "path":
-                    $href = ' '.self::href($value);  // ← now '/' will be processed
+                    $clean = is_string($value) ? trim($value) : '';
+                    if ($clean === '' || preg_match('/^\s*(?:javascript|vbscript|data)\s*:/i', $clean)) {
+                        $clean = '#';
+                    } else {
+                        $clean = CUtil::tap($clean);
+                    }
+                    $href = ' href="' . htmlspecialchars($clean, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
                     break;
                 case "href":
-                    $href = ' href="' . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
+                    $clean = is_string($value) ? trim((string) $value) : '';
+                    if ($clean === '' || preg_match('/^\s*(?:javascript|vbscript|data)\s*:/i', $clean)) {
+                        $clean = '#';
+                    }
+                    $href = ' href="' . htmlspecialchars($clean, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
                     break;
                 case "text":
-                    // the link's visible content — takes priority over 'title' below, regardless
-                    // of which key appears first in the array
-                    $imgortext = htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+                    $imgortext = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                     break;
                 case "title_hlp":
-                    $title = $imgortext = $text = ucfirst($value);
+                    $title = $imgortext = $text = ucfirst((string) $value);
                     break;
                 case "title":
                     if ($imgortext === '') {
-                        $imgortext = ucfirst($value); // fallback display text only when no explicit 'text' was given (e.g. menu separators: [['title'=>'=>']])
+                        $imgortext = ucfirst((string) $value);
                     }
-                    $title = " title=\"" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
+                    $title = " title=\"" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
                     break;
                 case "target":
-                    $target = " target=\"" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
+                    $target = " target=\"" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
                     break;
                 case "mailto":
-                    $href = " href=\"mailto:" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
+                    $href = " href=\"mailto:" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
                     break;
                 case "file":
-                    $href = " href=\"file:" . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
+                    $href = " href=\"file:" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
                     break;
                 case "img":
                     if (!empty($value))
                         $imgortext = self::Img($value);
                     break;
                 default:
-                    $buff .= " $key=\"" . htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') . '"';
+                    $buff .= " $key=\"" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
             }
         }
-        $ret = '<a' . $href . $confirm . $title. $target . rtrim($buff) . '>' . $imgortext . '</a>';
+        $ret = '<a' . $href . $confirm . $title . $target . rtrim($buff) . '>' . $imgortext . '</a>';
         return $ret;
     }
 
@@ -227,23 +286,31 @@ class CHtml
     }
 
     /**
-     * Handles both List<string> and List<SelectListItem> overloads
+     * Handles string options, SelectListItem objects, and Value/Text option arrays.
      */
     public static function dropDnList($selName, $iVarArray, $selVar = "")
     {
         // @Html.DropDownList("DdlPageSize", "", PageSizes, "Letter", ""); only work in Razor file
         $sb = "";
         foreach ($iVarArray as $s) {
-            $val = "";
             if ($s instanceof SelectListItem) {
                 $val = $s->Value;
+                $text = $s->Text;
+            } elseif (is_array($s)) {
+                $val = $s['Value'];
+                $text = $s['Text'];
             } else {
                 $val = $s;
+                $text = $s;
             }
 
-            $selected = ($val == $selVar) ? " selected" : "";
-            // sb.Append(String.Format("<option{0}>{1}</option>", selected, s));
-            $sb .= sprintf("<option%s>%s</option>", $selected, htmlspecialchars($val, ENT_QUOTES, 'UTF-8'));
+            $selected = ((string) $val == (string) $selVar) ? " selected" : "";
+            $sb .= sprintf(
+                '<option value="%s"%s>%s</option>',
+                htmlspecialchars((string) $val, ENT_QUOTES, 'UTF-8'),
+                $selected,
+                htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8')
+            );
         }
         // return String.Format("<select id=\"{0}\" name=\"{0}\">{1}</select>", selName, sb);
         return sprintf("<select id=\"%s\" name=\"%s\">%s</select>", htmlspecialchars($selName, ENT_QUOTES, 'UTF-8'), htmlspecialchars($selName, ENT_QUOTES, 'UTF-8'), $sb);

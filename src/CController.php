@@ -464,7 +464,9 @@ public function U404($args, $shortNameRte) // router controller and router short
         $uinfo = $_SESSION["uinfo"] ?? [];
         $ugrp = $uinfo['usrgroup'] ?? 'guest';
         $tgrp = $entry[$task]['group'] ?? null;
-        if (in_array(strtolower($task), $tgpass, true)) {
+        if (strtolower($task) === 'users' && strtolower($action) === 'logout') {
+            $notTnTg = false;
+        } elseif (in_array(strtolower($task), $tgpass, true)) {
             $notTnTg = false;
         } else {
             $notTnTg = empty($entry[$task])
@@ -510,8 +512,10 @@ public function U404($args, $shortNameRte) // router controller and router short
         // WORK 08/23: tg (built fresh every request by setMenu(), gated by usrgroup, sourced from the
         // master task directory - not $selctrl) is the single source of truth for t=/a= access.
         // Router itself (t=router) is exempt - it's not a task.
-        if (self::isNotTG($args, $shortNameRte) == true)
-            self::U404($args, $shortNameRte); // 404
+        if (self::isNotTG($args, $shortNameRte) == true) {
+            $this->U404($args, $shortNameRte); // 404
+            return;
+        }
 
         //        print (print_r($this->stg->get('tg'), true));
         switch (true) {

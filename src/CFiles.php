@@ -290,8 +290,11 @@ class CFiles
     public static function getRealViewPath($dPath = ".")
     {
         $vPath = CSetting::get("viewpath");
+        if (empty($vPath)) {
+            $vPath = dirname(__DIR__, 4) . DIRECTORY_SEPARATOR . 'apps' . DIRECTORY_SEPARATOR . 'views';
+        }
         $vPath = CUtil::v2BasePath($vPath);
-        $vfilePath = $vPath . "/" . $dPath;
+        $vfilePath = rtrim($vPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim((string) $dPath, DIRECTORY_SEPARATOR);
         return self::RealFilePath($vfilePath);
     }
 

@@ -360,22 +360,20 @@ class CUtil
         $ret = "";
 
         if ($value !== "") {
-            // HtmlSanitizer in the legacy application removed markup before
-            // applying the mode-specific conversion.
             $value = strip_tags($value);
             $type = strtolower((string) $iType);
 
             switch ($type) {
                 case "float":
-                    $ret = number_format((float) $value, 4, ".", "");
+                    $ret = number_format((float) preg_replace('/[^0-9.\-]/', '', $value), 4, ".", "");
                     break;
                 case "amt":
-                    $ret = number_format((float) $value, 2, ".", ",");
+                    $ret = number_format((float) preg_replace('/[^0-9.\-]/', '', $value), 2, ".", ",");
                     break;
                 case "int":
                 case "int32":
                 case "int64":
-                    $ret = number_format((int) $value, 0, ".", ",");
+                    $ret = (string) (int) preg_replace('/[^0-9\-]/', '', $value);
                     break;
                 case "enc4db":
                     $ret = htmlspecialchars(
@@ -758,21 +756,15 @@ class CUtil
     {
 
         if (is_array($inp)) {
-            return array_map(__METHOD__, $inp); // use call back to itself to replace when it is array
+            return array_map(__METHOD__, $inp);
         }
         if (!empty($inp) && is_string($inp)) {
-            $badchr = array(
-                "\xc2", // prefix 1
-                "\x80", // prefix 2
-                "\x98", // single quote opening
-                "\x99", // single quote closing
-                "\x8c", // double quote opening
-                "\x9d", // double quote closing
-                "\x96", // En dash
-                "\x97"  // Em dash
-            );
-            $goodchr = array('', '', '\'', '\'', '"', '"', '-', '-');
-            $inp = str_replace($badchr, $goodchr, $inp);
+            $inp = strip_tags($inp);
+            $inp = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $inp) ?? $inp;
+            $inp = preg_replace('/[\r\n\t]+/', ' ', $inp) ?? $inp;
+            $inp = preg_replace('/[\x{2018}\x{2019}\x{201C}\x{201D}]/u', "'", $inp) ?? $inp;
+            $inp = preg_replace('/[\'"<>`]+/', '', $inp) ?? $inp;
+            $inp = str_replace(['--', ';--'], ['', ';'], $inp);
         }
         return $inp;
     }
@@ -1200,8 +1192,11 @@ class CUtil
 
     public static function setActiveCtrl($qsa = []) // use view folder to validate select task, SAFER
     {
+        $tsk="";
+//pln($qsa,'qsa=');
         if ($qsa != null && isset($qsa['t']) && !empty($qsa['t'])) {
             $tsk = $qsa['t'];
+//pln($tsk,'t=');
 
             // validate directly against the controller's own view path,
             // not against apps.list (which is a taskgroup subset, not a nav registry)
@@ -1216,8 +1211,10 @@ class CUtil
                 CSetting::set('selctrl', CSetting::get('defctrl'));         // set defctrl as active controller
             }
         }
-
         $sel = CSetting::get('selctrl');
+//pln($tsk,'t=');
+//pln($sel,'s=');
+
         self::setMenu($sel);
     }
 
@@ -1233,7 +1230,7 @@ class CUtil
         $t = strtolower($qsa['t'] ?? CSetting::get('selctrl') ?? '');
         $a = strtolower($qsa['a'] ?? '');
 
-        $excludedT = ['action'];
+        $excludedT = ['action', 'odata'];
         $excludedA = ['login', '_login', 'logout', '_logout'];
 
         if (!in_array($t, $excludedT) && !in_array($a, $excludedA)) {
@@ -1415,28 +1412,32 @@ pln( $uInfoa,'_cfgtg');
 
     public static function Cookie_Usr($uinfo = null)
     {
-        $app = strtolower(CSetting::get("defctrl"));
-        $sapp = CSetting::get("urlsite") . CSetting::get("siteroot") . "_" . $app;
+        $app = strtolower((string) CSetting::get("defctrl", "front"));
+        $siteRoot = (string) CSetting::get("urlsite", "") . (string) CSetting::get("siteroot", "");
+        $appNames = CSetting::get("apps", $app);
+        $apps = is_string($appNames) ? array_map('trim', explode(',', $appNames)) : [];
+        $apps[] = $app;
+        $cookieNames = ["appid"];
 
-        if ($uinfo != null && !CString::IsEmpty($uinfo["usrname"])) {
-            $expires = date('Y-m-d', strtotime("+30 days"));
-            //            $expires = Now().AddDays(30); // 30 days,  (time() + 2592000) 1 month
-            self::Cookies_Set("appid", $uinfo["appid"], $expires);
-            self::Cookies_Set($sapp . "_usrname", $uinfo["usrname"], $expires);
-            self::Cookies_Set($sapp . "_usrpw", $uinfo["usrpw"], $expires);
-            self::Cookies_Set($sapp . "_usrentity", $uinfo["usrentity"], $expires);
-            self::Cookies_Set($sapp . "_id_hash", self::Cookie_Hash($uinfo["usrname"]), $expires);
-        } else {
-            //        $expires = DateTime.Now.AddMinutes(-60); // 1 hr ago  
-            $expires = -60; // 1 hr ago  
+        foreach (array_unique(array_filter($apps, static fn($name) => $name !== '')) as $appName) {
+            $prefix = $siteRoot . "_" . strtolower($appName);
+            foreach (["_usrname", "_usrpw", "_usrentity", "_id_hash"] as $suffix) {
+                $cookieNames[] = $prefix . $suffix;
+            }
+        }
 
-            self::Cookies_Set($sapp . "_id_hash", "", $expires);
-            self::Cookies_Set($sapp . "_usrname", "", $expires);
-            self::Cookies_Set($sapp . "_usrpw", "", $expires);
-            self::Cookies_Set($sapp . "_usrentity", "", $expires);
-            self::Cookies_Set("appid", "", $expires);
-            //        HttpContext.Current.Session.Clear(); // clear all session
-            $_SESSION = array();
+        $options = [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off',
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ];
+        foreach ($cookieNames as $cookieName) {
+            if (isset($_COOKIE[$cookieName])) {
+                unset($_COOKIE[$cookieName]);
+                setcookie($cookieName, '', $options);
+            }
         }
     }
 
@@ -1482,7 +1483,45 @@ pln( $uInfoa,'_cfgtg');
         //        exit;
         return $returl;
     }
-    public static function k09092026_getReturnUrl()
+
+            public static function getLogoutReturnUrl(): string
+            {
+                $returnUrl = self::getReturnUrl();
+                $query = parse_url($returnUrl, PHP_URL_QUERY);
+                if (!is_string($query) || $query === '') {
+                    return $returnUrl;
+                }
+
+                parse_str($query, $returnArgs);
+                $task = strtolower((string) ($returnArgs['t'] ?? ''));
+                $taskGroup = self::TaskGroup($task);
+                if ($task === '' || $taskGroup === '' || strtolower($taskGroup) === 'guest') {
+                    return $returnUrl;
+                }
+
+                $apps = CSetting::get('apps', []);
+                if (is_array($apps)) {
+                    foreach ($apps as $parent => $children) {
+                        if (!is_array($children) || !array_key_exists($task, $children)) {
+                            continue;
+                        }
+
+                        $parentGroup = self::TaskGroup((string) $parent);
+                        $parentActions = CSetting::get('tg.' . $parent . '.actions', []);
+                        if (
+                            ($parentGroup === '' || strtolower($parentGroup) === 'guest')
+                            && is_array($parentActions)
+                            && in_array('index', $parentActions, true)
+                        ) {
+                            return self::tap('/' . $parent . '/index');
+                        }
+                    }
+                }
+
+                return '?';
+            }
+
+            public static function k09092026_getReturnUrl()
     {
         $returl = "?";
         /*
@@ -1650,8 +1689,11 @@ pln( $uInfoa,'_cfgtg');
 
         return $isInTheList;
     }
-    public static function v2BasePath(string $vPath)
+    public static function v2BasePath(?string $vPath): string
     {
+        if ($vPath === null || trim($vPath) === '') {
+            return '';
+        }
         if (substr($vPath, 0, 1) == "~") {
             $vPath = self::basePath() . substr($vPath, 1);
         }
@@ -1814,7 +1856,7 @@ if ($namesArray === null) {
         if (is_array($iMenu) and !empty($iMenu)) {
             foreach ($iMenu as $one) {
                 //                pln($one, 'one');
-                $defaultreturn .= CHtml::Tag("li", CHtml::Alink($one));
+                $defaultreturn .= CHtml::TagWithHtml("li", CHtml::Alink($one));
             }
             $return = $defaultreturn;
         }
@@ -1927,8 +1969,9 @@ if ($namesArray === null) {
             if (!empty($mnu_apps)) {
                 $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? [];
                 CSetting::set('menus.app', $mnu_apps);
-                //                pln($mnu_apps, "mnu_apps-$selctrl");
-//                pln(CSetting::get('menus.app'), "mnu_apps");
+//                CSetting::set('menus.app.'.$selctrl, $mnu_apps);
+//                                pln($mnu_apps, "mnu_apps-$selctrl");
+//                pln(CSetting::get('menus.app'.$selctrl), "mnu_apps-$selctrl");
             }
         }
     }
@@ -1936,15 +1979,19 @@ if ($namesArray === null) {
 
     public static function getMenu($mnu = "main") // WORK 07/02/2026, dynamic submenu from view folder
     {
+                $selctrl = CSetting::get("selctrl");
+//                        pln($selctrl,"getMenu-$selctrl");
+
         $rmnu = "";
         $sMnu = CSetting::get("menus.$mnu");
+//        $sMnu = CSetting::get("menus.$mnu.$selctrl");
         //                pln($sMnu,'menu');
         if (empty($sMnu) == false && empty($mnu) == false) {
             switch ($mnu) {
                 case "sub":
                     foreach ($sMnu as $s => $v) {
                         if (empty($v) == false)
-                            $rmnu .= CHtml::Tag("li", CHtml::ahref($v, $s)); // v is not empty
+                            $rmnu .= CHtml::TagWithHtml("li", CHtml::ahref($v, $s)); // v is not empty
                     }
                     break;
                 default:
@@ -2015,9 +2062,10 @@ if ($namesArray === null) {
 
         $viewPath = CFiles::getRealViewPath($selView);
         if (is_dir($viewPath) && (substr($selView, 0, 1) <> "_")) {
-            $login = CSetting::get("login"); // dynamic _login in setting
+            $login = CSetting::get("login");
+            $viewExt = CSetting::get('viewext') ?: '.php';
             if (empty($_SESSION["uinfo"]['usrgroup'])) {
-                $vfile = "$viewPath/$login" . CSetting::get('viewext');
+                $vfile = rtrim($viewPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $login . $viewExt;
                 if (file_exists($vfile)) {
                     $loginOrOut['Login'] = self::tap("/$selView/$login");
                 }
@@ -2055,7 +2103,7 @@ if ($namesArray === null) {
         $smnu = array_merge($loginOrOut, $renamedViews);
         if (!empty($smnu)) {
             foreach ($smnu as $s => $v) {
-                $mnu_sub .= CHtml::Tag("li", CHtml::ahref($v, $s));
+                $mnu_sub .= CHtml::TagWithHtml("li", CHtml::ahref($v, $s));
             }
         }
 

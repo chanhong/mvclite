@@ -33,12 +33,13 @@ class CMsg extends CCore
     public static function _appdmsg2Sess($ret,$mvar="fbdmsg")
     {
         $prev = "";
+        $message = is_scalar($ret) || $ret === null ? (string) $ret : print_r($ret, true);
         $sfbdmsg = \CUtil::getSessTxt($mvar);
         if ($sfbdmsg != null && strlen($sfbdmsg) > 0) {
             $prev = $sfbdmsg . " ";
         }
         // must use this to avoid un-initialize error
-        $_SESSION[$mvar] = $prev . $ret;
+        $_SESSION[$mvar] = $prev . $message;
         return $_SESSION[$mvar];
     }
 
@@ -139,4 +140,3 @@ class CMsg extends CCore
 
 
 }
-

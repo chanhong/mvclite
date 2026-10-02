@@ -210,6 +210,27 @@ see public\index.php step 5-8
         exit;
     }
 
+    public function csrfToken(): string
+    {
+        if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || strlen($_SESSION['_csrf_token']) !== 64) {
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION['_csrf_token'];
+    }
+
+    public function hasValidCsrfPost(): bool
+    {
+        $submittedToken = $_POST['_csrf_token'] ?? null;
+        $sessionToken = $_SESSION['_csrf_token'] ?? null;
+
+        return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+            && is_string($submittedToken)
+            && is_string($sessionToken)
+            && $sessionToken !== ''
+            && hash_equals($sessionToken, $submittedToken);
+    }
+
     public static function pln($iVar, $iStr = '', $iFormat = 'br')
     {
         print CUtil::debug($iVar, $iStr, $iFormat);
@@ -239,17 +260,30 @@ see public\index.php step 5-8
 
     public function getUser($usrname, $meTable)
     {
-        $u = null;
-        if (!empty($usrname)) {
-            $where = "username ='$usrname'";
-            $u = $this->fetchRow($meTable, ['where' => $where]);
+        if (!is_scalar($usrname) || (string) $usrname === '') {
+            return null;
         }
-        return $u;
+
+        $table = $this->quoteIdentifierPath((string) $meTable);
+        $rows = $this->fetchRowsByQuery("SELECT * FROM $table WHERE username = ?", [(string) $usrname]);
+        return $rows[0] ?? null;
     }
 
-    protected function fetchRow(string $table, array $options = []): mixed
+    protected function fetchRowsByQuery(string $query, array $params): array
     {
-        return $this->db->dbRow($table, $options);
+        return CDbPdo::oleGetRowsParam($query, $params);
+    }
+
+    protected function quoteIdentifierPath(string $identifier): string
+    {
+        $parts = explode('.', $identifier);
+        foreach ($parts as $part) {
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $part)) {
+                throw new \InvalidArgumentException('Invalid SQL identifier.');
+            }
+        }
+
+        return implode('.', array_map(static fn(string $part): string => '[' . $part . ']', $parts));
     }
 
     public function dbIsAuthorized($validate, $where, $meTable)
@@ -364,61 +398,7 @@ see public\index.php step 5-8
 
     public static function IsLoginedUser()
     {
-        pln("IsLoginedUser", "called");
-        $ret = "";
-        $usrname = CUtil::getSessTxt("usrname");
-        $usrHash = "";
-        $app = strtolower(CSetting::get(("defctrl")));
-        $sapp = CSetting::get("urlsite") . CSetting::get("siteroot") . "_" . $app;
-
-        $usrCookie = CUtil::Cookies_Get($sapp . "_id_hash");
-        $usrnameCookie = CUtil::Cookies_Get($sapp . "_usrname");
-        $usrpwCookie = CUtil::Cookies_Get($sapp . "_usrpw");
-        /*
-        CMsg::_msg($usrCookie, "usrCookie");
-        CMsg::_msg($usrname, "usrname");
-        CMsg::_msg($usrnameCookie, "usrnameCookie");
-        CMsg::_msg($usrpwCookie, "usrpwCookie");
-        CMsg::_msg($sapp, "sapp");
-  */
-        if (!CString::IsEmpty($usrname)) {
-            $ret = $usrname; // usrname from session, already login, skip cookie
-        } else if (
-            !CString::IsEmpty($usrnameCookie) && !CString::IsEmpty($usrCookie)
-        ) // if cookie??
-        {
-            $appCookie = strtolower(CUtil::Cookies_Get("appid"));
-            $usrHash = CUtil::Cookie_Hash($usrnameCookie);
-            CMsg::_msg($usrHash, "usrHash");
-            CMsg::_msg($appCookie, "appCookie");
-            if (!CString::IsEmpty($usrHash) && $usrHash == $usrCookie) // compare to usrname from cookie = hashed cookie, restore cookie
-            {
-                // restore credential from cookie, not all env are restored, need more thinking?????
-                $entityCookie = CUtil::Cookies_Get($sapp + "_usrentity");
-                CMsg::_msg($entityCookie, "entityCookie");
-                CSecs::setUserLoginInfo($app, $usrnameCookie, $entityCookie); // set _usr from cookie
-                $usr = CUtil::getSessNv("uinfo");
-                $loggedin = CSecs::setUsrInfoText();
-                if (!CString::IsEmpty($loggedin)) {
-                    $ret = $usrCookie; // restore usrname from session or cookie
-                    $msg = "You are login as " . $loggedin; // this set the variable for a successful login
-                    static::$_usr["loggedin"] = $loggedin; // set loggedin for the current user session
-                    $_SESSION["loggedin"] = $loggedin; // also set loggedin in session for consistency and future checks
-                    //        pln(static::$_usr["loggedin"], "IsLoginedUser-loggedin");
-                    CUtil::Add2SessVar("feedback", $msg);
-                    //        pln($msg, "IsLoginedUser-msg");
-//                    die;
-                    CUtil::Redirect(CUtil::getReturnUrl());   // redirect from the login screen             
-                } else {
-                    CMsg::_msg($usr, "IsLoginedUser-loggedin-else");
-                }
-            } else {
-                CMsg::_msg($usrHash, "IsLoginedUser-usrHash-else");
-                CMsg::_msg($appCookie, "IsLoginedUser-appCookie-else");
-            }
-        }
-        //        pln($ret, "IsLoginedUser-return");
-        return $ret;
+        return CUtil::getSessTxt("usrname");
     }
     public static function GetUsrName()
     {
@@ -441,6 +421,7 @@ see public\index.php step 5-8
     {
         // Do NOT use session_destroy() or session_unset() if you still need debug messages
         unset($_SESSION['usrname']);
+        unset($_SESSION['usrgroup'], $_SESSION['usrentity']);
         unset($_SESSION['uinfo']);
         // unset($_SESSION['_uprf']);   // commented in original
         unset($_SESSION['loggedin']);
@@ -461,6 +442,7 @@ see public\index.php step 5-8
         $pw = "";
         //      CMsg::_dmsg($frm, "_Login-frm");
         CUtil::Cookie_Usr(); // clear cookie
+        self::ClearUser();
 
         if ($frm != null && count($frm) > 0 && CString::IsEmpty($frm["logintype"]) == false) {
             //        CUtil::Add2SessVar("feedback", "");
@@ -505,6 +487,9 @@ see public\index.php step 5-8
             }
 
             if ($ret == true) {
+                if (session_status() === PHP_SESSION_ACTIVE) {
+                    session_regenerate_id(true);
+                }
                 $loggedin = CSecs::setUsrInfoText();
                 $msg = "You are login as " . $loggedin; // this set the variable for a successful login
                 $_usr['level'] = $_usr['usrgroup'];
@@ -513,8 +498,10 @@ see public\index.php step 5-8
                 $_SESSION["loggedin"] = $loggedin; // also set loggedin in session for consistency and future checks
                 static::$_usr["loggedin"] = $loggedin; // set loggedin for the current user session
                 CMsg::_dmsg($_usr, $msg);
-                CUtil::Cookie_Usr($_usr);
                 CUtil::Add2SessVar("feedback", $msg);
+            }
+            if ($ret !== true) {
+                self::ClearUser();
             }
         } else {
             CUtil::Add2SessVar("alert", $msg);
