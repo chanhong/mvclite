@@ -375,26 +375,6 @@ see public\index.php step 5-8
         return $selCtrl;
     }
 
-    public static function not_used_SetMenuTop(string $task = "") // need to write to CSetting->_cfg instead of CCore::or CConfig
-    {
-        $fa = [];
-        $mnuLinks = $mnu_apps = [];
-        if ($task == "") {
-            $task = CSetting::get("selctrl");
-        }
-        $mnuHome = CCore::$_cfg["mnuhome"] ?? [];
-        $mnuCommon = CCore::$_cfg["mnucommon"] ?? [];
-        //        $mnu_apps = CCore::$_cfg["mnu_" . $task];
-        $fa = explode(',', CSetting::get('apps') );       
-        if ($fa != null) { // exclude _app
-            //        fa.Remove(getAppTxt("defctrl")); // remove default controller topmenu, later?
-            $mnu_apps = CUtil::sName2Mnu($fa); // app top submenu
-            $mnuLinks = array_merge($mnuHome, $mnuCommon, $mnu_apps);
-        }
-        CSetting::set('mnutop', $mnuLinks);
-        //        pln(CSetting::get("mnutop"), "mnutop");
-        return CSetting::$_stg["mnutop"];
-    }
 
     public static function IsLoginedUser()
     {

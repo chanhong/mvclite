@@ -1192,11 +1192,11 @@ class CUtil
 
     public static function setActiveCtrl($qsa = []) // use view folder to validate select task, SAFER
     {
-        $tsk="";
-//pln($qsa,'qsa=');
+        $tsk = "";
+        //pln($qsa,'qsa=');
         if ($qsa != null && isset($qsa['t']) && !empty($qsa['t'])) {
             $tsk = $qsa['t'];
-//pln($tsk,'t=');
+            //pln($tsk,'t=');
 
             // validate directly against the controller's own view path,
             // not against apps.list (which is a taskgroup subset, not a nav registry)
@@ -1212,7 +1212,7 @@ class CUtil
             }
         }
         $sel = CSetting::get('selctrl');
-//pln($tsk,'t=');
+        //pln($tsk,'t=');
 //pln($sel,'s=');
 
         self::setMenu($sel);
@@ -1484,44 +1484,44 @@ pln( $uInfoa,'_cfgtg');
         return $returl;
     }
 
-            public static function getLogoutReturnUrl(): string
-            {
-                $returnUrl = self::getReturnUrl();
-                $query = parse_url($returnUrl, PHP_URL_QUERY);
-                if (!is_string($query) || $query === '') {
-                    return $returnUrl;
+    public static function getLogoutReturnUrl(): string
+    {
+        $returnUrl = self::getReturnUrl();
+        $query = parse_url($returnUrl, PHP_URL_QUERY);
+        if (!is_string($query) || $query === '') {
+            return $returnUrl;
+        }
+
+        parse_str($query, $returnArgs);
+        $task = strtolower((string) ($returnArgs['t'] ?? ''));
+        $taskGroup = self::TaskGroup($task);
+        if ($task === '' || $taskGroup === '' || strtolower($taskGroup) === 'guest') {
+            return $returnUrl;
+        }
+
+        $apps = CSetting::get('apps', []);
+        if (is_array($apps)) {
+            foreach ($apps as $parent => $children) {
+                if (!is_array($children) || !array_key_exists($task, $children)) {
+                    continue;
                 }
 
-                parse_str($query, $returnArgs);
-                $task = strtolower((string) ($returnArgs['t'] ?? ''));
-                $taskGroup = self::TaskGroup($task);
-                if ($task === '' || $taskGroup === '' || strtolower($taskGroup) === 'guest') {
-                    return $returnUrl;
+                $parentGroup = self::TaskGroup((string) $parent);
+                $parentActions = CSetting::get('tg.' . $parent . '.actions', []);
+                if (
+                    ($parentGroup === '' || strtolower($parentGroup) === 'guest')
+                    && is_array($parentActions)
+                    && in_array('index', $parentActions, true)
+                ) {
+                    return self::tap('/' . $parent . '/index');
                 }
-
-                $apps = CSetting::get('apps', []);
-                if (is_array($apps)) {
-                    foreach ($apps as $parent => $children) {
-                        if (!is_array($children) || !array_key_exists($task, $children)) {
-                            continue;
-                        }
-
-                        $parentGroup = self::TaskGroup((string) $parent);
-                        $parentActions = CSetting::get('tg.' . $parent . '.actions', []);
-                        if (
-                            ($parentGroup === '' || strtolower($parentGroup) === 'guest')
-                            && is_array($parentActions)
-                            && in_array('index', $parentActions, true)
-                        ) {
-                            return self::tap('/' . $parent . '/index');
-                        }
-                    }
-                }
-
-                return '?';
             }
+        }
 
-            public static function k09092026_getReturnUrl()
+        return '?';
+    }
+
+    public static function k09092026_getReturnUrl()
     {
         $returl = "?";
         /*
@@ -1927,6 +1927,26 @@ if ($namesArray === null) {
         return $rt;
     }
 
+    // own group wins; else the group that lists $ctrl as a member; else []
+    private static function resolveAppGroup(string $ctrl): array
+    {
+        $apps = CSetting::get('apps') ?? [];
+
+        // 1. a group that lists $ctrl as a member (parent menu)
+        foreach ($apps as $group => $items) {
+            if (is_array($items) && array_key_exists($ctrl, $items)) {
+                return $items;
+            }
+        }
+        // 2. optional alias: 'x' => 'front'
+        $own = $apps[$ctrl] ?? null;
+        if (is_string($own) && is_array($apps[$own] ?? null)) {
+            return $apps[$own];
+        }
+        // 3. own group
+        return is_array($own) ? $own : [];
+    }
+
     // setmenu sync bug???  CONTINUE this later, need to fix the submenu bug users vs other such as books, author (not on apps.list)
     public static function setMenu($selctrl)
     {
@@ -1950,7 +1970,8 @@ if ($namesArray === null) {
         // new tg base on buildTg
 
         // --- menu building stays scoped to selctrl, unrelated to tg now ---
-        $fa = CSetting::get('apps.' . $selctrl);
+//        $fa = CSetting::get('apps.' . $selctrl);
+        $fa = self::resolveAppGroup($selctrl);
         foreach ($fa ?? [] as $s => $value) {
             list($tgroup, $ttitle) = explode(',', $value);
             (empty($tgroup)) ? $tgroup = 'guest' : $tgroup;
@@ -1969,8 +1990,7 @@ if ($namesArray === null) {
             if (!empty($mnu_apps)) {
                 $mnu_apps = array_merge([['title' => '=>']], $mnu_apps) ?? [];
                 CSetting::set('menus.app', $mnu_apps);
-//                CSetting::set('menus.app.'.$selctrl, $mnu_apps);
-//                                pln($mnu_apps, "mnu_apps-$selctrl");
+                //                                pln($mnu_apps, "mnu_apps-$selctrl");
 //                pln(CSetting::get('menus.app'.$selctrl), "mnu_apps-$selctrl");
             }
         }
@@ -1979,12 +1999,12 @@ if ($namesArray === null) {
 
     public static function getMenu($mnu = "main") // WORK 07/02/2026, dynamic submenu from view folder
     {
-                $selctrl = CSetting::get("selctrl");
-//                        pln($selctrl,"getMenu-$selctrl");
+        $selctrl = CSetting::get("selctrl");
+        //                        pln($selctrl,"getMenu-$selctrl");
 
         $rmnu = "";
         $sMnu = CSetting::get("menus.$mnu");
-//        $sMnu = CSetting::get("menus.$mnu.$selctrl");
+        //        $sMnu = CSetting::get("menus.$mnu.$selctrl");
         //                pln($sMnu,'menu');
         if (empty($sMnu) == false && empty($mnu) == false) {
             switch ($mnu) {
