@@ -1927,8 +1927,28 @@ if ($namesArray === null) {
         return $rt;
     }
 
+
     // own group wins; else the group that lists $ctrl as a member; else []
     private static function resolveAppGroup(string $ctrl): array
+    {
+        $apps = CSetting::get('apps') ?? [];
+
+        $own = $apps[$ctrl] ?? null;
+        if (is_string($own) && is_array($apps[$own] ?? null)) {
+            return $apps[$own];                     // optional alias: 'fbsq' => 'front'
+        }
+        if (is_array($own) && !empty($own)) {
+            return $own;
+        }
+        foreach ($apps as $group => $items) {       // 'list' is a string, skipped by is_array
+            if (is_array($items) && array_key_exists($ctrl, $items)) {
+                return $items;
+            }
+        }
+        return [];
+    }
+    // the group that lists $ctrl as a member win; own group; else []
+    private static function gwin_resolveAppGroup(string $ctrl): array
     {
         $apps = CSetting::get('apps') ?? [];
 
@@ -2096,7 +2116,8 @@ if ($namesArray === null) {
 
         $fldviews = self::viewDir2Nv4Mnu($selView); // All menu links from the view folder
 //    pln($fldviews,'view');
-        $fa = CSetting::get('apps.' . $selView);
+//        $fa = CSetting::get('apps.' . $selView);
+        $fa = CSetting::get('sub.' . $selView); // move to sub menu branch
 
         $renamedViews = [];
         foreach ($fldviews ?? [] as $s => $value) {

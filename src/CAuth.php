@@ -109,7 +109,8 @@ class CAuth
                 // MD5 hash is always 32 chars; bcrypt is 60
                 if (strlen($user['password']) === 32) {
                     // Old MD5 password
-                    if ($user['password'] == $this->md5Hash($validate, $user['nid'])) {  // <-- FIX: add $user['nid']
+//                    if ($user['password'] == $this->md5Hash($validate, $user['nid'])) {  // <-- FIX: add $user['nid']
+                    if (hash_equals((string)$user['password'], $this->md5Hash($validate, $user['nid']))) {                    
                         $status = true;
                         $needsRehash = true;
                     }
@@ -139,13 +140,13 @@ class CAuth
         }
         return $status;
     }
-    public function old_md5_login($validate, $user)
+    public function old_md5_login($validate, $user) // old_md5_login
     {
 
         $status = false;
         // if login via form or win login
         if (!empty($user['username']) and !empty($validate)) {
-            //            if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
+//                        if (!empty($user['password']) and $user['password'] == $this->md5Hash($validate)) {
 // hashpassword??, migrated away from md5
             if (!empty($user['password']) and password_verify($validate, $user['password'])) {
                 $status = true;
