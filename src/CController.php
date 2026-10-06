@@ -397,38 +397,38 @@ class CController extends Ccore
     }
 
     // WORK-unified 404, bad t= else fail, use internal 404
-public function U404($args, $shortNameRte) // router controller and router shortname
-{
-    $p404   = CConfig::$_cfg['routes']['page404'];
-    $task   = $args['t'];
-    $action = $args['a'];
-    $ctl    = CUtil::getClass($shortNameRte);
-    $s404   = $this->stg->get('404s'); // ordered fallback view locations, e.g. ['action','router']
+    public function U404($args, $shortNameRte) // router controller and router shortname
+    {
+        $p404 = CConfig::$_cfg['routes']['page404'];
+        $task = $args['t'];
+        $action = $args['a'];
+        $ctl = CUtil::getClass($shortNameRte);
+        $s404 = $this->stg->get('404s'); // ordered fallback view locations, e.g. ['action','router']
 
-    pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
+        pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
 
-    foreach ($s404 as $loc) {
-        if ($loc === 'action') {
-            // no controller class for this view (e.g. logout) —
-            // render the view file directly, skip controller resolution
-            $target = 'action';
-            $ctl->_class_path = $target;
-        } else {
-            // 'router' (or a named router shortname) — controller class
-            // already resolved normally, _class_path is already correct
-            $target = ($loc === 'router') ? $shortNameRte : $loc;
+        foreach ($s404 as $loc) {
+            if ($loc === 'action') {
+                // no controller class for this view (e.g. logout) —
+                // render the view file directly, skip controller resolution
+                $target = 'action';
+                $ctl->_class_path = $target;
+            } else {
+                // 'router' (or a named router shortname) — controller class
+                // already resolved normally, _class_path is already correct
+                $target = ($loc === 'router') ? $shortNameRte : $loc;
+            }
+
+            if ($ctl->isAppView($p404, $target)) {
+                self::doView($ctl, $p404);
+                return;
+            }
         }
 
-        if ($ctl->isAppView($p404, $target)) {
-            self::doView($ctl, $p404);
-            return;
-        }
+        // exhausted every location in $s404 — nothing to render, go internal
+        CUtil::debug("Internal 404: $task-$action");
+        $this->i404("$task-$action"); // internal 404
     }
-
-    // exhausted every location in $s404 — nothing to render, go internal
-    CUtil::debug("Internal 404: $task-$action");
-    $this->i404("$task-$action"); // internal 404
-}    
     public function old_U404($args, $shortNameRte) // router controller and router shortname
     {
         // redirect Warning: Cannot modify header information - headers already sent by (output started at Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CUtil.php:1110) in Y:\_needed\mvclite_work\apps\Lib\mvclite\src\CCore::php on line 195
@@ -453,6 +453,13 @@ public function U404($args, $shortNameRte) // router controller and router short
         }
     }
 
+    // action-level group from sub.<ctrl>.<action> ("admin,Create user" -> "admin"); '' = no extra requirement
+    protected function actionGroup(string $t, string $a): string
+    {
+        $v = $this->stg->get("sub.$t.$a");
+        return is_string($v) ? strtolower(trim(explode(',', $v, 2)[0])) : '';
+    }
+
     public function isNotTG($args, $shortNameRte) // always MvcLite\Router
     {
         $notTnTg = false;
@@ -464,6 +471,7 @@ public function U404($args, $shortNameRte) // router controller and router short
         $uinfo = $_SESSION["uinfo"] ?? [];
         $ugrp = $uinfo['usrgroup'] ?? 'guest';
         $tgrp = $entry[$task]['group'] ?? null;
+        $agrp = $this->actionGroup(strtolower((string) $task), strtolower((string) $action));   // NEW
         if (strtolower($task) === 'users' && strtolower($action) === 'logout') {
             $notTnTg = false;
         } elseif (in_array(strtolower($task), $tgpass, true)) {
@@ -471,30 +479,22 @@ public function U404($args, $shortNameRte) // router controller and router short
         } else {
             $notTnTg = empty($entry[$task])
                 || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
+                || ($agrp !== '' && !CSecs::IsUsrGrpComp($ugrp, $agrp, ">="))               // NEW
                 || !in_array(strtolower($action), $entry[$task]['actions'] ?? [], true);
         }
-        /*
-   pln([
-       'task' => $task,
-       'action' => $action,
-       'tg_entry' => $entry[$task] ?? 'MISSING',
-       'ugrp' => $ugrp,
-       'tgrp' => $tgrp,
-       'notTnTg' => $notTnTg,
-   ], 'isNotTG-debug');  
-   */      
         return $notTnTg;
     }
+
 
     // bef DI   public static function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     public function doRouter($routes, $iClassName = self::class) // always MvcLite\Router
     {
-/*
-    pln([
-    'session_id' => session_id(),
-    'uinfo_at_entry' => $_SESSION['uinfo'] ?? 'MISSING',
-], 'doRouter-entry');        
-*/
+        /*
+            pln([
+            'session_id' => session_id(),
+            'uinfo_at_entry' => $_SESSION['uinfo'] ?? 'MISSING',
+        ], 'doRouter-entry');        
+        */
         //                pln($this->stg->get('tg'), "tg");
 
         $shortNameRte = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
