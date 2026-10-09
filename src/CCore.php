@@ -155,7 +155,10 @@ see public\index.php step 5-8
 
         $this->_class_path = strtolower((new \ReflectionClass($this))->getShortName()); // "ClassName" — getShortName() works in PHP 8.x
 
-        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
+// NO        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
+
+$r = (string)($_REQUEST['r'] ?? '');
+$this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';        
     }
 
     /**

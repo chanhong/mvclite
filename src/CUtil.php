@@ -1230,7 +1230,7 @@ class CUtil
         $t = strtolower($qsa['t'] ?? CSetting::get('selctrl') ?? '');
         $a = strtolower($qsa['a'] ?? '');
 
-        $excludedT = ['action', 'odata'];
+        $excludedT = ['action', 'odata', 'udata'];
         $excludedA = ['login', '_login', 'logout', '_logout'];
 
         if (!in_array($t, $excludedT) && !in_array($a, $excludedA)) {

@@ -140,7 +140,7 @@ class CHtml
 
     static function alink($iVar) // WORK well
     {
-           error_log((new Exception)->getTraceAsString());
+//           error_log((new Exception)->getTraceAsString());
         if (empty($iVar) or (!is_array($iVar)))
             return '';  // ← return empty string, not null //Warning: Array to string conversion
 

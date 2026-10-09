@@ -734,4 +734,9 @@ class CSecs extends CCore
 
         return self::IsUsrGrpComp(isset(static::$_usr["usrgroup"]) ? static::$_usr["usrgroup"] : null, $grp, $opr);
     }
+public static function isAboveGrp(string $group): bool
+{
+    $have = CSecs::getGroupNo($_SESSION['uinfo']['usrgroup'] ?? 'guest');
+    return $have > CSecs::getGroupNo($group);
+}    
 }

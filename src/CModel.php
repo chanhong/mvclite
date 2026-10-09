@@ -113,7 +113,7 @@ class CModel extends CCore
      * @param string $appstring Optional application string for database connection.
      * @return array Associative array containing the filtered and cleaned request values.
      */
-    public static function request2Nv(array $rForm, string $tName, string $appstring = ""): array
+    public static function CS_request2Nv(array $rForm, string $tName, string $appstring = ""): array
     {
         // Default to dbname from application if not provided
         $nvSchema = self::gSchemaFromDbain($tName, $appstring); // Use self:: for static calls within the same class
@@ -133,9 +133,26 @@ class CModel extends CCore
                 $nvValue[$ka] = $cleanedValue;
             }
         }
+//error_log('request2Nv ' . $tName . ' schema=' . json_encode(array_keys($nvSchema)) . ' form=' . json_encode(array_keys($rForm)) . ' nv=' . json_encode(array_keys($nvValue)));  // temporary        
         return $nvValue;
     }
 
+    public static function request2Nv(array $rForm, string $tName, string $appstring = ""): array
+{
+    $nvSchema = self::gSchemaFromDbain($tName, $appstring);
+    $nvValue = [];
+    // C# NameValueCollection is case-insensitive, PHP arrays are not. The grid posts lower-case names
+    // (dt2Rows lower-cases every column), the schema keeps the DB's own case. Match and key in lower case.
+    $lcForm = array_change_key_case($rForm, CASE_LOWER);
+    foreach ($nvSchema as $ka => $type) {
+        $k = strtolower((string) $ka);
+        if (isset($lcForm[$k])) {
+            $nvValue[$k] = \CUtil::cleanStr($lcForm[$k], $type ?? null);
+        }
+    }
+//   error_log('request2Nv ' . $tName . ' schema=' . json_encode(array_keys($nvSchema)) . ' form=' . json_encode(array_keys($rForm)) . ' nv=' . json_encode(array_keys($nvValue)));  // temporary    
+    return $nvValue;
+}
     // The purpose of 'decode' is unclear without context. The uncommented C# code
     // does not pass a 'decode' parameter to CUtil::cleanStr. If 'decode' was
     // meant to control encoding/decoding, it would need to be passed as an argument
