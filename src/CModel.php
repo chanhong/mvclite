@@ -67,7 +67,7 @@ class CModel extends CCore
         }
     }
 
-        public function not_guard_dbt($opr, $text_or_array)
+    public function not_guard_dbt($opr, $text_or_array)
     {
         if (!empty($opr) and !empty($text_or_array)) {
             $allowArray = ['select', 'dbrow', 'update', 'delete', 'insert', 'getnextid'];
@@ -133,29 +133,43 @@ class CModel extends CCore
                 $nvValue[$ka] = $cleanedValue;
             }
         }
-//error_log('request2Nv ' . $tName . ' schema=' . json_encode(array_keys($nvSchema)) . ' form=' . json_encode(array_keys($rForm)) . ' nv=' . json_encode(array_keys($nvValue)));  // temporary        
+        //error_log('request2Nv ' . $tName . ' schema=' . json_encode(array_keys($nvSchema)) . ' form=' . json_encode(array_keys($rForm)) . ' nv=' . json_encode(array_keys($nvValue)));  // temporary        
         return $nvValue;
     }
 
     public static function request2Nv(array $rForm, string $tName, string $appstring = ""): array
-{
-    $nvSchema = self::gSchemaFromDbain($tName, $appstring);
-    $nvValue = [];
-    // C# NameValueCollection is case-insensitive, PHP arrays are not. The grid posts lower-case names
-    // (dt2Rows lower-cases every column), the schema keeps the DB's own case. Match and key in lower case.
-    $lcForm = array_change_key_case($rForm, CASE_LOWER);
-    foreach ($nvSchema as $ka => $type) {
-        $k = strtolower((string) $ka);
-        if (isset($lcForm[$k])) {
-            $nvValue[$k] = \CUtil::cleanStr($lcForm[$k], $type ?? null);
+    {
+        $nvSchema = self::gSchemaFromDbain($tName, $appstring);
+        $nvValue = [];
+        // C# NameValueCollection is case-insensitive, PHP arrays are not. The grid posts lower-case names
+        // (dt2Rows lower-cases every column), the schema keeps the DB's own case. Match and key in lower case.
+        $lcForm = array_change_key_case($rForm, CASE_LOWER);
+        foreach ($nvSchema as $ka => $type) {
+            $k = strtolower((string) $ka);
+            if (isset($lcForm[$k])) {
+                $nvValue[$k] = \CUtil::cleanStr($lcForm[$k], $type ?? null);
+            }
         }
+        //   error_log('request2Nv ' . $tName . ' schema=' . json_encode(array_keys($nvSchema)) . ' form=' . json_encode(array_keys($rForm)) . ' nv=' . json_encode(array_keys($nvValue)));  // temporary    
+        return $nvValue;
     }
-//   error_log('request2Nv ' . $tName . ' schema=' . json_encode(array_keys($nvSchema)) . ' form=' . json_encode(array_keys($rForm)) . ' nv=' . json_encode(array_keys($nvValue)));  // temporary    
-    return $nvValue;
-}
     // The purpose of 'decode' is unclear without context. The uncommented C# code
     // does not pass a 'decode' parameter to CUtil::cleanStr. If 'decode' was
     // meant to control encoding/decoding, it would need to be passed as an argument
     // to this PHP function as well and handled within CUtil:::cleanStr.
+    // only an admin session (or an explicit trusted caller, e.g. a seed script) may choose privilege fields
+
+    protected function isAdminSession(bool $trusted = false): bool
+    {
+        return $trusted || CSecs::IsUsrLevel('admin', '>=');   // reads usrgroup from the session
+    }
+
+    // a valid, creatable group name from stg `groups`, else $default
+    protected function validGroup($g, string $default = 'user'): string
+    {
+        $g = strtolower(trim((string) $g));
+        $groups = (array) CSetting::get('groups');
+        return ($g !== '' && $g !== 'guest' && array_key_exists($g, $groups)) ? $g : $default;
+    }
 }
 

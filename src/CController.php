@@ -460,7 +460,36 @@ class CController extends Ccore
         return is_string($v) ? strtolower(trim(explode(',', $v, 2)[0])) : '';
     }
 
+    /*
+
+    */
     public function isNotTG($args, $shortNameRte) // always MvcLite\Router
+    {
+        $notTnTg = false;
+        $task = $args['t'];
+        $action = $args['a'];
+        $tg = $this->stg->get('tg') ?? [];
+        $tgpass = $this->stg->get('tgExemptControllers') ?? [];
+        $entry[$task] = $tg[strtolower($task)] ?? null;
+        $uinfo = $_SESSION["uinfo"] ?? [];
+        $ugrp = $uinfo['usrgroup'] ?? 'guest';
+        $tgrp = $entry[$task]['group'] ?? null;
+        $agrp = $this->actionGroup(strtolower((string) $task), strtolower((string) $action));   // NEW
+        if (strtolower($task) === 'users' && strtolower($action) === 'logout') {
+            $notTnTg = false;
+        } elseif (in_array(strtolower($task), $tgpass, true)) {
+            $notTnTg = false;
+        } else {
+            $actionOk = in_array(strtolower($action), $entry[$task]['actions'] ?? [], true)
+                || $agrp !== '';        // action-only endpoint declared in stg sub.<ctrl>.<action> with a group
+            $notTnTg = empty($entry[$task])
+                || !CSecs::IsUsrGrpComp($ugrp, $tgrp, ">=")
+                || ($agrp !== '' && !CSecs::IsUsrGrpComp($ugrp, $agrp, ">="))
+                || !$actionOk;
+        }
+        return $notTnTg;
+    }
+    public function NO_delete_isNotTG($args, $shortNameRte) // always MvcLite\Router
     {
         $notTnTg = false;
         $task = $args['t'];
