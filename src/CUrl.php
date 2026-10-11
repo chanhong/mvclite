@@ -4,6 +4,23 @@ namespace MvcLite;
 
 class CUrl
 {
+    public static function relRoot($adj = "")
+    {
+        $levels = substr_count($_SERVER['PHP_SELF'], '/');
+        $root = '';
+        for ($i = 1; $i < $levels - $adj; $i++) {
+            $root .= '../';
+        }
+        return $root;
+    }
+
+    public static function rootPath($path = "")
+    {
+        $path_parts = pathinfo($_SERVER['PHP_SELF']);
+        $return = realpath(dirname(realpath($path_parts['basename'])) . "/" . $path);
+        return $return;
+    }
+
     public static function getURI()
     {
         if (empty($_SERVER['REQUEST_URI'])) {

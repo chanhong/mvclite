@@ -1,4 +1,6 @@
 <?php
+namespace MvcLite;
+
 /**
  * DBHelper – PHP equivalents of the C# “NameValueCollection” utilities.
  *
@@ -27,7 +29,7 @@ class CDbHelper
      * @param string $value      Either a literal value or a placeholder (e.g. "?")
      * @return string            Fragment ready to be concatenated into a WHERE clause
      * -------------------------------------------------------------------- */
-    private static function FOV(string $field, string $op, string $value): string
+    private static function buildFOVFragment(string $field, string $op, string $value): string
     {
         // If the caller supplied a placeholder we do *not* quote it.
         if ($value === '?') {
@@ -37,6 +39,33 @@ class CDbHelper
         // For literal values we wrap them in single quotes and escape any inner quotes.
         $escaped = addslashes($value);
         return sprintf("%s %s '%s'", $field, $op, $escaped);
+    }
+
+    public static function CnvDate($iVar, $value = "")
+    {
+        if ($value !== "" && $value !== null) {
+            return "CONVERT(DATETIME, '" . str_replace("'", "''", (string) $iVar) . "')";
+        }
+        return "CONVERT(DATETIME, " . $iVar . ")";
+    }
+
+    public static function GetFOVDate($fieldName, $opr, $strDateValue)
+    {
+        return self::FOV(self::CnvDate($fieldName), $opr, self::CnvDate($strDateValue, "value"), "Date");
+    }
+
+    public static function FOV($source, $op, $value = "?", $ilFunc = "")
+    {
+        if ($value === "?") {
+            return "$source $op ?";
+        }
+        if (strtolower((string) $op) === "like") {
+            return "$source $op '%" . str_replace("'", "''", (string) $value) . "%'";
+        }
+        if (!CString::IsEmpty($ilFunc)) {
+            return "$source $op $value";
+        }
+        return "$source $op '" . str_replace("'", "''", (string) $value) . "'";
     }
 
     /* --------------------------------------------------------------------
@@ -120,13 +149,13 @@ class CDbHelper
             // Build single fragment
             if ($placeholder === '?') {
                 // Safer path – we keep the placeholder; actual binding must be done later.
-                $fragment = self::FOV($field, $op, '?');
+                $fragment = self::buildFOVFragment($field, $op, '?');
                 // Remember the raw value for later binding (optional – developer can call bindValue themselves)
                 // In this plain helper we only return the SQL fragment.
             } else {
                 // Direct embedding – wrap value in % wildcards.
                 $wild = '%' . $value . '%';
-                $fragment = self::FOV($field, $op, $wild);
+                $fragment = self::buildFOVFragment($field, $op, $wild);
             }
 
             $sb .= $fragment . $sep;

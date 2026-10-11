@@ -179,23 +179,14 @@ class CUtil
         return CUrl::getURI();
     }
 
-    function relRoot($adj = "")
+    public static function relRoot($adj = "")
     {
-
-        $levels = substr_count($_SERVER['PHP_SELF'], '/');
-        $root = '';
-        for ($i = 1; $i < $levels - $adj; $i++) {
-            $root .= '../';
-        }
-        return ($root);
+        return CUrl::relRoot($adj);
     }
 
-    function rootPath($path = "")
+    public static function rootPath($path = "")
     {
-
-        $path_parts = pathinfo($_SERVER['PHP_SELF']);
-        $return = realpath(dirname(realpath($path_parts['basename'])) . "/" . $path);
-        return $return;
+        return CUrl::rootPath($path);
     }
 
     public static function rootSite()
@@ -290,43 +281,7 @@ class CUtil
 
     public static function clean($str, $itype = "txt", $retchar = "")
     {
-
-        switch ($itype) {
-            case "quote":
-                (!empty($str)) ? $ret = str_replace("'", "''", str_replace("\'", "'", $str)) : $ret = "";
-                break;
-            case "email":
-                $ret = filter_var($str, FILTER_SANITIZE_EMAIL);
-                // FILTER_SANITIZE_STRING deprecated starting 8.1
-                //                $ret = @filter_var($ret, FILTER_SANITIZE_STRING); // try to catch single quote
-                $ret = htmlspecialchars(strip_tags(trim($ret)), ENT_QUOTES, 'UTF-8');
-                break;
-            case "num":
-                $ret = filter_var($str, FILTER_SANITIZE_NUMBER_INT);
-                break;
-            case "txt":
-                // FILTER_SANITIZE_STRING deprecated starting 8.1
-//                $ret = @filter_var($str, FILTER_SANITIZE_STRING);
-                $ret = htmlspecialchars(strip_tags(trim($str)), ENT_QUOTES, 'UTF-8');
-                //                $ret = self::escapeStr($ret); // strip out none ascii chars
-                $ret = self::escapeStr(htmlspecialchars($ret, ENT_QUOTES, 'UTF-8'));
-                break;
-            case "amt":
-                $patterns = array('/[^0-9.]/');
-                $ret = sprintf("%1.2f", preg_replace($patterns, '', $str));
-                if (strlen($ret) > 10) {
-                    $ret = 0;
-                }
-                break;
-            default:
-            case "raw":
-                $ret = filter_var($str, FILTER_UNSAFE_RAW, FILTER_FLAG_STRIP_HIGH); // keep tab and return
-                break;
-        }
-        if (empty($ret) and !empty($retchar)) {
-            $ret = $retchar;
-        }
-        return $ret;
+        return CString::Clean($str, $itype, $retchar);
     }
 
     /**
@@ -334,57 +289,7 @@ class CUtil
      */
     public static function cleanStr($iStr, $iType = "txt", $rChar = "")
     {
-        $value = is_scalar($iStr) ? (string) $iStr : "";
-        $ret = "";
-
-        if ($value !== "") {
-            $value = strip_tags($value);
-            $type = strtolower((string) $iType);
-
-            switch ($type) {
-                case "float":
-                    $ret = number_format((float) preg_replace('/[^0-9.\-]/', '', $value), 4, ".", "");
-                    break;
-                case "amt":
-                    $ret = number_format((float) preg_replace('/[^0-9.\-]/', '', $value), 2, ".", ",");
-                    break;
-                case "int":
-                case "int32":
-                case "int64":
-                    $ret = (string) (int) preg_replace('/[^0-9\-]/', '', $value);
-                    break;
-                case "enc4db":
-                    $ret = htmlspecialchars(
-                        self::stripSpecChars($value),
-                        ENT_QUOTES | ENT_SUBSTITUTE,
-                        "UTF-8"
-                    );
-                    break;
-                case "dec4vw":
-                    $ret = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, "UTF-8");
-                    $ret = strip_tags($ret);
-                    break;
-                case "html":
-                    $ret = strip_tags($value);
-                    break;
-                case "url":
-                    $ret = rawurldecode($value);
-                    break;
-                case "asci":
-                    $ret = preg_replace('/[^\x00-\x7F]/', "", $value) ?? "";
-                    break;
-                case "raw":
-                    $ret = self::escQote($value);
-                    break;
-                case "string":
-                case "txt":
-                default:
-                    $ret = self::stripSpecChars($value);
-                    break;
-            }
-        }
-
-        return ($ret === "" && $rChar !== "") ? $rChar : $ret;
+        return CString::CleanStr($iStr, $iType, $rChar);
     }
 
     public static function evenOrOdd(int $iCnt): string
@@ -619,93 +524,29 @@ class CUtil
         return in_array(end($fArray), $allowedExtensions);
     }
 
-    function splitWords($string, $max = 1)
+    public static function splitWords($string, $max = 1)
     {
-
-        $words = preg_split('/\s/', $string);
-        $lines = array();
-        $line = '';
-        foreach ($words as $k => $word) {
-            $length = strlen($line . ' ' . $word);
-            if ($length <= $max) {
-                $line .= ' ' . $word;
-            } else if ($length > $max) {
-                if (!empty($line))
-                    $lines[] = trim($line);
-                $line = $word;
-            } else {
-                $lines[] = trim($line) . ' ' . $word;
-                $line = '';
-            }
-        }
-        $lines[] = ($line = trim($line)) ? $line : $word;
-        return $lines;
+        return CString::splitWords((string) $string, (int) $max);
     }
 
-    function splitLongLine($string, $maxWords = 96)
+    public static function splitLongLine($string, $maxWords = 96)
     { // fit 1024 screen size
-
-        $oline = "";
-        $strArry = explode("\n\r", $string);
-        foreach ($strArry as $line) {
-            (strlen($line) > $maxWords) ? $strArray = self::splitWords($line, $maxWords) : $strArray = array();
-            (!empty($strArray)) ? $oline .= implode("\n\r", $strArray) : $oline .= $line;
-        }
-        return $oline;
+        return CString::splitLongLine((string) $string, (int) $maxWords);
     }
 
-    function delTree($dir)
+    public static function delTree($dir)
     {
-
-        if (is_dir($dir)) {
-            $objects = scandir($dir);
-            foreach ($objects as $object) {
-                if ($object != "." && $object != "..") {
-                    if (filetype($dir . "/" . $object) == "dir")
-                        self::delTree($dir . "/" . $object);
-                    else
-                        unlink($dir . "/" . $object);
-                }
-            }
-            reset($objects);
-            rmdir($dir);
-        }
+        CFiles::delTree((string) $dir);
     }
 
-    function getDateArrayFromFiles($listDir)
+    public static function getDateArrayFromFiles($listDir)
     {
-
-        $dateA = array();
-        foreach ($listDir as $fspec) {
-            $path_parts = pathinfo($fspec);
-            $filename = $path_parts['basename'];
-            $whichDate = date("Y/m/d", filemtime($fspec));
-            //      $dateA[$whichDate] = $filename;
-            $dateA[$whichDate] = $whichDate;
-        }
-        return $dateA;
+        return CDate::getDateArrayFromFiles($listDir);
     }
 
-    // TODO not working yet!  not sort correctly
-//  function getFirstLastDate($dateA,$dFormat="m/d/y") {
-    function getFirstLastDate($dateA, $dFormat = "Y/m/d")
+    public static function getFirstLastDate($dateA, $dFormat = "Y/m/d")
     {
-
-        //    $fDate = $lDate = date("m/d/y",time());
-        $fDate = $lDate = date($dFormat, time());
-        asort($dateA); // TODO
-        $i = 0;
-        $maxItem = count($dateA);
-        foreach ($dateA as $k => $one) {
-            if ($i == 0)
-                $firstDate = $k;
-            if ($i == $maxItem - 1)
-                $lastDate = $k;
-            $i++;
-        }
-        $fDate = date($dFormat, strtotime($firstDate));
-        $lDate = date($dFormat, strtotime($lastDate));
-        return array($fDate, $lDate);
+        return CDate::getFirstLastDate($dateA, $dFormat);
     }
 
     public static function GetDate(string $sDte = "")
@@ -1849,9 +1690,7 @@ if ($namesArray === null) {
      */
     public static function CnvDate($iVar, $value = "")
     {
-        if ($value !== "" && $value !== null)
-            return "CONVERT(DATETIME, '" . str_replace("'", "''", (string) $iVar) . "')";
-        return "CONVERT(DATETIME, " . $iVar . ")";
+        return CDbHelper::CnvDate($iVar, $value);
     }
 
     /**
@@ -1860,7 +1699,7 @@ if ($namesArray === null) {
      */
     public static function GetFOVDate($fieldName, $opr, $strDateValue)
     {
-        return self::FOV(self::CnvDate($fieldName), $opr, self::CnvDate($strDateValue, "value"), "Date");
+        return CDbHelper::GetFOVDate($fieldName, $opr, $strDateValue);
     }
 
     /**
@@ -1870,13 +1709,7 @@ if ($namesArray === null) {
      */
     public static function FOV($source, $op, $value = "?", $ilFunc = "")
     {
-        if ($value === "?")
-            return "$source $op ?";
-        if (strtolower($op) === "like")
-            return "$source $op '%" . str_replace("'", "''", (string) $value) . "%'";
-        if (!CString::IsEmpty($ilFunc))
-            return "$source $op $value";
-        return "$source $op '" . str_replace("'", "''", (string) $value) . "'";
+        return CDbHelper::FOV($source, $op, $value, $ilFunc);
     }
 
     /**
