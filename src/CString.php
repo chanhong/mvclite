@@ -171,4 +171,54 @@ class CString extends CCore
         }
         return mb_substr($alphabet, $idx + 1, 1, "UTF-8");
     }
+
+    public static function EscapeStr($inp)
+    {
+        if (is_array($inp)) {
+            return array_map([self::class, 'EscapeStr'], $inp);
+        }
+        if (!empty($inp) && is_string($inp)) {
+            $inp = strip_tags($inp);
+            $inp = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $inp) ?? $inp;
+            $inp = preg_replace('/[\r\n\t]+/', ' ', $inp) ?? $inp;
+            $inp = preg_replace('/[\x{2018}\x{2019}\x{201C}\x{201D}]/u', "'", $inp) ?? $inp;
+            $inp = preg_replace('/[\'"<>`]+/', '', $inp) ?? $inp;
+            $inp = str_replace(['--', ';--'], ['', ';'], $inp);
+        }
+        return $inp;
+    }
+
+    public static function StripSpecChars(string $value): string
+    {
+        return self::EscapeStr($value);
+    }
+
+    public static function Validate($iType, $iStr)
+    {
+        switch ($iType) {
+            case 'empty':
+                return !self::IsEmpty((string) $iStr);
+            case 'full_email':
+            case 'email':
+                $ok = (bool) preg_match(
+                    '/^[^0-9][A-Za-z0-9_]+([.][A-Za-z0-9_]+)*[@][A-Za-z0-9_]+([.][A-Za-z0-9_]+)*[.][A-Za-z]{2,4}/',
+                    (string) $iStr
+                );
+                if (
+                    self::IsEmpty((string) $iStr)
+                    || preg_match('/fullemail|nobody|somebody|no-?exist/i', (string) $iStr)
+                ) {
+                    $ok = false;
+                }
+                return $ok;
+            case 'password':
+                if (!self::IsEmpty((string) $iStr) && strlen((string) $iStr) >= 6) {
+                    return true;
+                }
+                CUtil::Add2SessVar('feedback', '  Sorry -- the password must be at least 6 characters. ');
+                return false;
+            default:
+                return false;
+        }
+    }
 }

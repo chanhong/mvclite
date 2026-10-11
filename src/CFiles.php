@@ -161,6 +161,24 @@ class CFiles
         return $oArray;
     }
 
+    public static function fDirName(string $fspec): string
+    {
+        $pathParts = pathinfo($fspec);
+        return !empty($pathParts['dirname']) ? $pathParts['dirname'] : "";
+    }
+
+    public static function fName(string $fspec): string
+    {
+        $pathParts = pathinfo($fspec);
+        return !empty($pathParts['filename']) ? $pathParts['filename'] : "";
+    }
+
+    public static function fExt(string $fspec): string
+    {
+        $pathParts = pathinfo($fspec);
+        return !empty($pathParts['extension']) ? $pathParts['extension'] : "";
+    }
+
     public static function filesList(string $dir, string $ext): array
     {
         $l = array();
@@ -194,7 +212,7 @@ class CFiles
                 && (($ext) ? (preg_match("/$quotedExt$/i", $f)) : 1)
             )
 
-                $l[] = CUtil::fName($f);
+                $l[] = self::fName($f);
 
         return $l;
     }

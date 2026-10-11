@@ -394,7 +394,7 @@ class CUtil
 
     private static function stripSpecChars(string $value): string
     {
-        return self::escapeStr($value);
+        return CString::StripSpecChars($value);
     }
 
     private static function escQote(string $value): string
@@ -523,28 +523,19 @@ class CUtil
         return $return;
     }
 
-    function fDirName($fspec)
+    public static function fDirName($fspec)
     {
-
-        $path_parts = pathinfo($fspec);
-        (!empty($path_parts['dirname'])) ? $ret = $path_parts['dirname'] : $ret = "";
-        return $ret;
+        return CFiles::fDirName((string) $fspec);
     }
 
-    static function fName($fspec)
+    public static function fName($fspec)
     {
-
-        $path_parts = pathinfo($fspec);
-        (!empty($path_parts['filename'])) ? $ret = $path_parts['filename'] : $ret = "";
-        return $ret;
+        return CFiles::fName((string) $fspec);
     }
 
-    function fExt($fspec)
+    public static function fExt($fspec)
     {
-
-        $path_parts = pathinfo($fspec);
-        (!empty($path_parts['extension'])) ? $ret = $path_parts['extension'] : $ret = "";
-        return $ret;
+        return CFiles::fExt((string) $fspec);
     }
 
     function virtualFolder2RealFolder($folderPath)
@@ -717,9 +708,35 @@ class CUtil
         return array($fDate, $lDate);
     }
 
-    function dateAdd($iDate, $iDays, $dateFormat = 'Y/m/d')
+    public static function GetDate(string $sDte = "")
     {
-        return date($dateFormat, strtotime("$iDays day" . $iDate));
+        return CDate::GetDate($sDte);
+    }
+
+    public static function GetDateExact(string $fmt = "YmdHis", string $sDte = "")
+    {
+        return CDate::GetDateExact($fmt, $sDte);
+    }
+
+    public static function Dte2s(string $fmt = "", string $sDte = "")
+    {
+        return CDate::Dte2s($fmt, $sDte);
+    }
+
+    public static function DateAfterRetention(int $retentionYears = 6)
+    {
+        return CDate::DateAfterRetention($retentionYears);
+    }
+
+    public static function FinYearBegDate(int $FYStart = 7): string
+    {
+        return CDate::FinYearBegDate($FYStart);
+    }
+
+    public static function dateAdd($iDate, $iDays, $dateFormat = 'Y/m/d')
+    {
+        $dt = CDate::GetDate((string) $iDate);
+        return $dt->modify("+$iDays days")->format($dateFormat);
     }
 
     function br2nl($string)
@@ -732,19 +749,7 @@ class CUtil
 
     public static function escapeStr($inp)
     {
-
-        if (is_array($inp)) {
-            return array_map(__METHOD__, $inp);
-        }
-        if (!empty($inp) && is_string($inp)) {
-            $inp = strip_tags($inp);
-            $inp = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $inp) ?? $inp;
-            $inp = preg_replace('/[\r\n\t]+/', ' ', $inp) ?? $inp;
-            $inp = preg_replace('/[\x{2018}\x{2019}\x{201C}\x{201D}]/u', "'", $inp) ?? $inp;
-            $inp = preg_replace('/[\'"<>`]+/', '', $inp) ?? $inp;
-            $inp = str_replace(['--', ';--'], ['', ';'], $inp);
-        }
-        return $inp;
+        return CString::EscapeStr($inp);
     }
 
     // Fixes MAGIC_QUOTES
@@ -905,43 +910,17 @@ class CUtil
 
     public static function filesListNameOnly($dir, $ext)
     {
-
-        $l = array();
-        foreach (array_diff(scandir($dir), array('.', '..')) as $f)
-            if (
-                is_file($dir . '/' . $f)
-                && (($ext) ? (preg_match("/$ext$/i", $f)) : 1)
-            )
-
-                $l[] = self::fName($f);
-
-        return $l;
+        return CFiles::filesListNameOnly((string) $dir, (string) $ext);
     }
 
     public static function filesList($dir, $ext)
     {
-
-        $l = array();
-        foreach (array_diff(scandir($dir), array('.', '..')) as $f)
-            if (
-                is_file($dir . '/' . $f)
-                && (($ext) ? (preg_match("/$ext$/i", $f)) : 1)
-            )
-
-                $l[] = $f;
-
-        return $l;
+        return CFiles::filesList((string) $dir, (string) $ext);
     }
 
     public static function dirsList($dir)
     {
-
-        $l = array();
-        foreach (array_diff(scandir($dir), array('.', '..')) as $f)
-            if (is_dir($dir . '/' . $f))
-                $l[] = $f;
-
-        return $l;
+        return CFiles::dirsList((string) $dir);
     }
 
     public static function mnu_s2a($source, $s): array
@@ -1909,30 +1888,6 @@ if ($namesArray === null) {
      */
     public static function Validate($iType, $iStr)
     {
-        switch ($iType) {
-            case 'empty':
-                return !CString::IsEmpty($iStr);
-            case 'full_email':
-            case 'email':
-                $ok = (bool) preg_match(
-                    '/^[^0-9][A-Za-z0-9_]+([.][A-Za-z0-9_]+)*[@][A-Za-z0-9_]+([.][A-Za-z0-9_]+)*[.][A-Za-z]{2,4}/',
-                    (string) $iStr
-                );
-                if (
-                    CString::IsEmpty($iStr)
-                    || preg_match('/fullemail|nobody|somebody|no-?exist/i', (string) $iStr)
-                ) {
-                    $ok = false;
-                }
-                return $ok;
-            case 'password':
-                if (!CString::IsEmpty($iStr) && strlen((string) $iStr) >= 6) {
-                    return true;
-                }
-                self::Add2SessVar('feedback', '  Sorry -- the password must be at least 6 characters. ');
-                return false;
-            default:
-                return false;
-        }
+        return CString::Validate($iType, $iStr);
     }
 }
