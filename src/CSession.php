@@ -16,8 +16,11 @@ class HttpContext
 
     public function __construct()
     {
-        // In PHP, we link the Session property to the global $_SESSION superglobal
-        if (session_status() === PHP_SESSION_NONE) {
+        // In PHP, we link the Session property to the global $_SESSION superglobal.
+        // Do not start a native session when legacy code has already seeded
+        // the superglobal array for tests or request bootstrap; that would
+        // replace the current session data with an empty one.
+        if (session_status() === PHP_SESSION_NONE && empty($_SESSION)) {
             @session_start();
         }
         $this->Session = &$_SESSION;
@@ -67,13 +70,18 @@ final class CSession
     $this->_session = $session;
   }
 
+  private static function ensureSessionStarted(): void
+  {
+      if (session_status() === PHP_SESSION_NONE && empty($_SESSION)) {
+          @session_start();
+      }
+  }
+
   public static function clearSession()
   {
 // Start the session (required before modifying it)
 //session_start();
-if (session_status() == PHP_SESSION_NONE) {
-session_start();
-}
+self::ensureSessionStarted();
 // 1. Unset all session variables
 $_SESSION = array();
 
@@ -100,6 +108,7 @@ session_destroy();
 
   public static function add2SessVar($iVar, $msg)
   {
+      self::ensureSessionStarted();
       if (empty($_SESSION[$iVar])) {
           $_SESSION[$iVar] = $msg;
       } else {
@@ -109,11 +118,13 @@ session_destroy();
 
   public static function getSessTxt(string $fb = "feedback")
   {
+      self::ensureSessionStarted();
       return $_SESSION[$fb] ?? '';
   }
 
   public static function getSessNv(string $key): array
   {
+      self::ensureSessionStarted();
       $val = $_SESSION[$key] ?? [];
       return is_array($val) ? $val : [];
   }
