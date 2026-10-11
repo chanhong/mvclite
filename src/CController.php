@@ -487,6 +487,17 @@ class CController extends Ccore
                 || ($agrp !== '' && !CSecs::IsUsrGrpComp($ugrp, $agrp, ">="))
                 || !$actionOk;
         }
+        if ($notTnTg) {
+            error_log(sprintf(
+                'isNotTG deny t=%s a=%s user=%s ugrp=%s tgrp=%s agrp=%s',
+                $task,
+                $action,
+                $_SESSION['uinfo']['username'] ?? $_SESSION['uinfo']['usrname'] ?? '-',
+                $ugrp,
+                (string) $tgrp,
+                $agrp
+            ));
+        }
         return $notTnTg;
     }
     public function NO_delete_isNotTG($args, $shortNameRte) // always MvcLite\Router
