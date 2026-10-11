@@ -217,5 +217,241 @@ class CMenu
         }
         return $results;
     }
-}
 
+    public static function getLiMenu($menu)
+    {
+        if (!is_array($menu) || empty($menu)) {
+            return $menu;
+        }
+
+        $html = '';
+        foreach ($menu as $item) {
+            $html .= CHtml::TagWithHtml('li', CHtml::Alink($item));
+        }
+
+        return $html;
+    }
+
+    private static function buildTaskGroups($controller, array &$groups, array $visited = []): void
+    {
+        if (in_array($controller, $visited)) {
+            return;
+        }
+        $visited[] = $controller;
+
+        $taskDir = CSetting::get('apps.' . $controller);
+        if (!is_array($taskDir)) {
+            return;
+        }
+
+        foreach ($taskDir as $task => $value) {
+            if (isset($groups[$task])) {
+                continue;
+            }
+
+            [$group] = explode(',', $value);
+            $group = $group ?: 'guest';
+            $actions = [strtolower(CSetting::get('defview'))];
+            $actions = array_merge(
+                $actions,
+                array_map('strtolower', CUtil::getViewNameArray($task, ['index']) ?? [])
+            );
+
+            $groups[$task] = [
+                'group' => $group,
+                'actions' => array_values(array_unique($actions)),
+            ];
+
+            if (is_array(CSetting::get('apps.' . $task))) {
+                self::buildTaskGroups($task, $groups, $visited);
+            }
+        }
+    }
+
+    private static function resolveAppGroup(string $controller): array
+    {
+        $apps = CSetting::get('apps') ?? [];
+        $own = $apps[$controller] ?? null;
+
+        if (is_string($own) && is_array($apps[$own] ?? null)) {
+            return $apps[$own];
+        }
+        if (is_array($own) && !empty($own)) {
+            return $own;
+        }
+        foreach ($apps as $items) {
+            if (is_array($items) && array_key_exists($controller, $items)) {
+                return $items;
+            }
+        }
+        return [];
+    }
+
+    public static function isAllowGrp($taskGroup = ''): bool
+    {
+        return empty($taskGroup)
+            || $taskGroup == 'guest'
+            || CSecs::IsUsrGrpComp($_SESSION['uinfo']['usrgroup'] ?? 'guest', $taskGroup, '>=');
+    }
+
+    public static function setMenu($selectedController): void
+    {
+        $homeMenu = CCore::$_cfg['mnuhome'] ?? [];
+        $commonMenu = CCore::$_cfg['mnucommon'] ?? [];
+        $topMenu = array_merge($homeMenu, $commonMenu);
+        if (!empty($topMenu)) {
+            CSetting::set('menus.main', $topMenu);
+        }
+
+        $taskGroups = [];
+        $topGroups = array_map('trim', explode(',', CSetting::get('apps.list')));
+        foreach ($topGroups as $group) {
+            self::buildTaskGroups($group, $taskGroups);
+        }
+        CSetting::set('tg', $taskGroups);
+
+        $appGroup = self::resolveAppGroup($selectedController);
+        $appMenu = [];
+        foreach ($appGroup as $task => $value) {
+            [$taskGroup, $title] = explode(',', $value);
+            $taskGroup = $taskGroup ?: 'guest';
+            $title = $title ?: ucfirst($task);
+
+            $viewPath = CFiles::getRealViewPath($task);
+            if (
+                is_dir($viewPath)
+                && substr($task, 0, 1) !== '_'
+                && self::isAllowGrp($taskGroup)
+            ) {
+                $appMenu[$task] = [
+                    'title' => $title,
+                    'path' => '/' . $task . '/' . CSetting::get('defview'),
+                ];
+            }
+        }
+
+        if (!empty($appMenu)) {
+            unset($appMenu[$selectedController]);
+            if (!empty($appMenu)) {
+                $appMenu = array_merge([['title' => '=>']], $appMenu);
+                CSetting::set('menus.app', $appMenu);
+            }
+        }
+    }
+
+    public static function getMenu($menu = 'main')
+    {
+        $menuItems = CSetting::get('menus.' . $menu);
+        if (empty($menuItems) || empty($menu)) {
+            return '';
+        }
+
+        if ($menu === 'sub') {
+            $html = '';
+            foreach ($menuItems as $label => $url) {
+                if (!empty($url)) {
+                    $html .= CHtml::TagWithHtml('li', CHtml::ahref($url, $label));
+                }
+            }
+            return $html;
+        }
+
+        return self::getLiMenu($menuItems);
+    }
+
+    public static function getCommonMenu(): array
+    {
+        $homeMenu = CCore::$_cfg['mnuhome'] ?? [];
+        $commonMenu = CCore::$_cfg['mnucommon'] ?? [];
+        return array_merge($homeMenu, $commonMenu);
+    }
+
+    public static function getTopMenu()
+    {
+        $topMenuHtml = '';
+        $menuHtml = '';
+        $selectedController = CSetting::get('selctrl');
+        $appGroup = CSetting::get('apps.' . $selectedController);
+        $taskGroups = [];
+        $appMenu = [];
+
+        foreach ($appGroup ?? [] as $task => $value) {
+            [$taskGroup, $title] = explode(',', $value);
+            (empty($taskGroup)) ? $taskGroup = 'guest' : $taskGroup;
+            (empty($title)) ? $title = ucfirst($task) : $title;
+            $taskGroups[$task] = $taskGroup;
+
+            $viewPath = CFiles::getRealViewPath($task);
+            if (is_dir($viewPath) && (substr($task, 0, 1) <> '_')) {
+                $defaultView = CSetting::get('defview');
+                if (
+                    empty($taskGroup) || $taskGroup == 'guest'
+                    || CSecs::IsUsrGrpComp(
+                        $_SESSION['uinfo']['usrgroup'] ?? 'guest',
+                        $taskGroup,
+                        '>='
+                    )
+                ) {
+                    $appMenu[$task] = ['title' => $title, 'path' => "/$task/$defaultView"];
+                }
+            }
+        }
+
+        if (!empty($appMenu)) {
+            CSetting::set('tg', $taskGroups);
+            $appMenu = CUtil::rmArr1D($appMenu, $selectedController) ?? [];
+            $appMenu = array_merge([['title' => '=>']], $appMenu) ?? [];
+            $menuHtml = self::getLiMenu($appMenu);
+        }
+
+        return $topMenuHtml . $menuHtml;
+    }
+
+    public static function getSubMenu()
+    {
+        $loginOrLogout = [];
+        $query = CUtil::qsValue() ?? [];
+        $selectedView = CSetting::get('selctrl') ?: ($query['t'] ?? null);
+
+        $viewPath = CFiles::getRealViewPath($selectedView);
+        if (is_dir($viewPath) && substr($selectedView, 0, 1) !== '_') {
+            $login = CSetting::get('login');
+            $viewExtension = CSetting::get('viewext') ?: '.php';
+            if (empty($_SESSION['uinfo']['usrgroup'])) {
+                $viewFile = rtrim($viewPath, DIRECTORY_SEPARATOR)
+                    . DIRECTORY_SEPARATOR . $login . $viewExtension;
+                if (file_exists($viewFile)) {
+                    $loginOrLogout['Login'] = CUtil::tap('/' . $selectedView . '/' . $login);
+                }
+            } else {
+                $loginOrLogout['Logout'] = CUtil::tap(CSetting::get('urllogout'));
+            }
+        }
+
+        $viewLinks = CUtil::viewDir2Nv4Mnu($selectedView);
+        $submenuConfig = CSetting::get('sub.' . $selectedView);
+        $renamedViews = [];
+        foreach ($viewLinks ?? [] as $view => $url) {
+            $taskGroup = '';
+            $title = '';
+            if (!empty($submenuConfig[$view])) {
+                $parts = explode(',', $submenuConfig[$view], 2);
+                $taskGroup = $parts[0] ?? '';
+                $title = $parts[1] ?? '';
+            }
+            $taskGroup = $taskGroup !== '' ? $taskGroup : 'guest';
+            $title = $title !== '' ? $title : ucfirst($view);
+            if (!self::isAllowGrp($taskGroup)) {
+                continue;
+            }
+            $renamedViews[$title] = $url;
+        }
+
+        $submenu = array_merge($loginOrLogout, $renamedViews);
+        $html = '';
+        foreach ($submenu as $label => $url) {
+            $html .= CHtml::TagWithHtml('li', CHtml::ahref($url, $label));
+        }
+        return $html;
+    }
+}
