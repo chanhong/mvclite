@@ -176,17 +176,7 @@ class CUtil
 
     public static function getURI()
     {
-
-        if (empty($_SERVER['REQUEST_URI'])) {
-            (!empty($_SERVER['QUERY_STRING'])) ? $qs = "?" . $_SERVER['QUERY_STRING'] : $qs = "";
-            $path_parts = pathinfo($_SERVER['PHP_SELF']);
-            $uri = $path_parts['basename'] . $qs;
-            if (substr($uri, 0, 1) <> "/")
-                $uri = "/" . $uri; // make it looks like REQUEST_URI
-        } else {
-            $uri = $_SERVER['REQUEST_URI'];
-        }
-        return $uri;
+        return CUrl::getURI();
     }
 
     function relRoot($adj = "")
@@ -210,29 +200,17 @@ class CUtil
 
     public static function rootSite()
     {
-
-        //    $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        //    $dirname = preg_replace('/\\\+/', '/', dirname(realpath($uri)));
-        $dirname = preg_replace('/\\\+/', '/', dirname($_SERVER['PHP_SELF']));
-        if (substr($dirname, -1) == "/")
-            $dirname = substr($dirname, 0, strlen($dirname) - 1); // remove / if it is there to be consistent for URL
-        return $dirname;
+        return CUrl::rootSite();
     }
 
     public static function siteURL()
     {
-
-        $protocol = "http://";
-        if (!empty($_SERVER['HTTPS']))
-            (strtolower($_SERVER['HTTPS']) == "on") ? $protocol = "https://" : $protocol = "http://";
-        (!empty($_SERVER['SERVER_PORT']) and $_SERVER['SERVER_PORT'] <> "443" and $_SERVER['SERVER_PORT'] <> "80") ? $port = ":" . $_SERVER['SERVER_PORT'] : $port = "";
-        return $protocol . $_SERVER['SERVER_NAME'] . $port;
+        return CUrl::siteURL();
     }
 
     public static function selfURL()
     {
-
-        return self::siteURL() . self::rootSite();
+        return CUrl::selfURL();
     }
 
     function array2InsStr($iArray)
@@ -782,7 +760,7 @@ class CUtil
 
     public static function add2SessVar($iVar, $msg) // self:: in CUtil class is fine, outsie will trigger depreciated warning
     {
-        (!empty($_SESSION[$iVar])) ? $_SESSION[$iVar] .= " $msg" : $_SESSION[$iVar] = $msg;
+        CSession::add2SessVar($iVar, $msg);
     }
 
     public static function dict2nv($dict)
@@ -1082,63 +1060,17 @@ class CUtil
     }
     public static function getSessTxt(string $fb = "feedback")
     {
-        return $_SESSION[$fb] ?? '';
+        return CSession::getSessTxt($fb);
     }
     public static function qsValue() // good only if $_SERVER['QUERY_STRING'] has value
     {
-        // qs: ?t=users&a=login (key paired) or ?p=/users/login (path)
-        $arr = array();
-        $qs = $_SERVER['QUERY_STRING'] ?? ''; // Null coalescing operator   
-//        echo "qs: $qs";
-        if ($qs <> null && strlen($qs) > 0) {
-            $retUrl = "";
-            // if not login, set return url to redirect to login screen and this code works, don't change
-            $retArr = explode("&r=", $qs, 2); // if r= in qs then ensure rs= is in the last element
-            if (count($retArr) > 1) { // if r= is found then set return url
-                $retUrl = array_pop($retArr); // save retURL
-                $qs = array_pop($retArr); // change qs to exclude retURL
-            }
-            // if not login, set return url to redirect to login screen and this code works, don't change
-            $taskArr = explode("t=", $qs); // ensure at least there is t=
-            if (count($taskArr) > 1) {
-                parse_str($qs, $arr);
-                $arr = array_map('strtolower', $arr);
-                $arr = array_map('trim', $arr);
-            } else {
-                $arr = array('t' => $qs); // if no t then it is from front controller, patch in t
-                if (!empty($retUrl))
-                    $arr['r'] = $retUrl;
-            }
-            //            pln($arr, "qsValue");
-        }
-        return $arr;
+        return CUrl::qsValue();
     }
 
 
     public static function qs2nv($url = "") // qs2nv replace qsvalue()
     {
-        //        if ($url == null or $url == "") return;
-
-        $qscoll = null;
-        $currurl = $url;
-
-        // must use full path to HttpContext to get the full url
-        if ($currurl == "" || $currurl == "?") {
-            $currurl = self::getURI();
-        }
-        $querystring = null;
-        // Check to make sure some query string variables exist
-        $iqs = strpos($currurl, "?");
-        //pln($currurl,"url: $iqs");
-
-        if ($iqs > 0) {
-            // filter out the ?
-            $querystring = ($iqs < strlen($currurl) - 1) ? substr($currurl, $iqs + 1) : "";
-            parse_str($querystring, $qscoll);
-        }
-        // NameValueCollection { { "t", "task"}, { "a", "action"}, { "p1", "parm1"} }
-//        pln($qscoll, "qs2nv-qs");
-        return $qscoll;
+        return CUrl::qs2nv($url);
     }
     public static function GetLayout(string $ilayout = "")
     {
@@ -1149,20 +1081,7 @@ class CUtil
     // ivar /task/action/p1/p2 cmd = delete (optional)
     public static function Tap2Qs(string $iVar, string $cmd = "")
     {
-        $cqs = ($cmd != "") ? "&c=" . $cmd : "";
-        $ret = "?";
-        switch (substr($iVar, 0, 1)) {
-            case "/": // /users/add/1
-                $qs = self::path2qs($iVar);
-                if ($qs != null && strlen($qs) > 0) {
-                    $ret = "?" . $qs;
-                }
-                break;
-            case "?": // ?page1
-                $ret = $iVar;
-                break;
-        }
-        return $ret . $cqs;
+        return CUrl::Tap2Qs($iVar, $cmd);
     }
 
     public static function setActiveCtrl_original($qsa = []) // work with users,books,authors, KEEP for reference
@@ -1259,68 +1178,29 @@ class CUtil
 
     public static function tap_selfurl(string $iVar, string $cmd = "")
     {
-        $urlroot = CSetting::get("urlsite") . CSetting::get("siteroot");
-        return $urlroot . "/" . self::Tap2Qs($iVar, $cmd);
+        return CUrl::tap_selfurl($iVar, $cmd);
     }
     public static function tap(string $iVar, string $cmd = "")
     {
-        return self::Tap2Qs($iVar, $cmd);
+        return CUrl::tap($iVar, $cmd);
     }
 
     public static function path2qs(string $iPath, string $cmd = "")
     {
-        $cqs = ($cmd != "") ? "&c=" + $cmd : "";
-        $p2a = CUtil::path2a($iPath);
-        $ret = CUtil::nv2kps($p2a, "&");
-        return $ret . $cqs;
+        return CUrl::path2qs($iPath, $cmd);
     }
     public static function path2a(string $iPath)
     {
-        $kArray = [];
-        //        pln($iPath,'ipath');
-        $vArray = (isset($iPath) && substr($iPath, 0, 1) == '/') ? explode("/", substr($iPath, 1, strlen($iPath))) : null; // strip 1st /
-        $vArray = array_pad($vArray, count($kArray), '');
-        //        $kArray = CSetting::get("takey").Split(',');
-        $aKey = isset(CCore::$_cfg["takey"]) ? CCore::$_cfg["takey"] : 't,a,p1,p2,p3,p4,p5';
-        $kArray = explode(",", $aKey);
-
-        $qsa = [];
-        $i = 0;
-        //        pln($vArray, 'vArray'); // a=logout
-        foreach ($vArray as $ka) {
-            //                pln($ka,'ka'); // a=logout
-            if (isset($ka[0]) && isset($kArray[0])) {
-                //            if ($ka!=null && !empty($ka) && strlen($ka) > 0) {
-//                pln($kArray[$i],'k:'.$i);
-                $qsa[$kArray[$i]] = $ka;
-                $i++;
-            }
-        }
-        //        pln($qsa, "path2a");
-        return $qsa;
+        return CUrl::path2a($iPath);
     }
     public static function nv2kps($source, $delim = "&")
     {
-        $sb = "";
-        if ($source != null && count($source) > 0) {
-            // Iterate through the collection.
-            foreach (array_keys($source) as $s) {
-                $sb .= ($s . "=" . (string) $source[$s] . $delim);
-            }
-        }
-        return CUtil::sb2s($sb, $delim);
+        return CUrl::nv2kps($source, $delim);
     }
 
     public static function sb2s($sb, string $separator)
     {
-
-        $ret = "";
-        if ($sb != null && strlen($sb) > 0) {
-            $ret = $sb;
-            $ret = substr($ret, 0, strlen($ret) - strrpos($separator, $ret) - 1); // - the last character, find a better way??
-        }
-        //        pln($ret,'sb2s');
-        return $ret;
+        return CUrl::sb2s($sb, $separator);
     }
     public static function cTsk()
     {
@@ -1397,48 +1277,12 @@ pln( $uInfoa,'_cfgtg');
     }
     public static function Cookies_Get(string $key = "")
     {
-        //             HttpCookie objRequestRead=Request.Cookies['UserInfo'];
-        /*
-        $value = "";
-        if (HttpContext.Current.Request.Cookies.AllKeys.Contains($key))
-        {
-          $value = HttpContext.Current.Request.Cookies[$key]->Value;
-        }
-  */
-        //        return htmlspecialchars($_COOKIE[$key]);
-        return $_COOKIE[$key] ?? '';
-        //      return $value;
+        return CSession::Cookies_Get($key);
     }
 
     public static function Cookie_Usr($uinfo = null)
     {
-        $app = strtolower((string) CSetting::get("defctrl", "front"));
-        $siteRoot = (string) CSetting::get("urlsite", "") . (string) CSetting::get("siteroot", "");
-        $appNames = CSetting::get("apps", $app);
-        $apps = is_string($appNames) ? array_map('trim', explode(',', $appNames)) : [];
-        $apps[] = $app;
-        $cookieNames = ["appid"];
-
-        foreach (array_unique(array_filter($apps, static fn($name) => $name !== '')) as $appName) {
-            $prefix = $siteRoot . "_" . strtolower($appName);
-            foreach (["_usrname", "_usrpw", "_usrentity", "_id_hash"] as $suffix) {
-                $cookieNames[] = $prefix . $suffix;
-            }
-        }
-
-        $options = [
-            'expires' => time() - 3600,
-            'path' => '/',
-            'secure' => !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off',
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ];
-        foreach ($cookieNames as $cookieName) {
-            if (isset($_COOKIE[$cookieName])) {
-                unset($_COOKIE[$cookieName]);
-                setcookie($cookieName, '', $options);
-            }
-        }
+        CSession::Cookie_Usr($uinfo);
     }
 
     public static function Cookie_Hash(string $user_name)
@@ -1454,9 +1298,7 @@ pln( $uInfoa,'_cfgtg');
 
     public static function Cookies_Set(string $key, string $value, $expires)
     {
-        $mach_name = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-
-        setcookie($key, $value, (int) $expires, '/', $mach_name);
+        CSession::Cookies_Set($key, $value, $expires);
     }
     public static function getReturnUrl()
     {
@@ -1565,7 +1407,7 @@ pln( $uInfoa,'_cfgtg');
     // Safely build the full current URL
     public static function MyUrl(): string
     {
-        return self::getURI();
+        return CUrl::MyUrl();
     }
 
 
@@ -1676,8 +1518,7 @@ pln( $uInfoa,'_cfgtg');
      */
     public static function getSessNv(string $key): array
     {
-        $val = $_SESSION[$key] ?? [];
-        return is_array($val) ? $val : [];
+        return CSession::getSessNv($key);
     }
     public static function isEqInList(string $iVar, string $iList, $delim = ',')
     {
