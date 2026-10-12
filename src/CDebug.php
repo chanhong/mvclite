@@ -75,8 +75,10 @@ class CDebug
         //        $ret = print_r($ret, true);                
 
         // Write to file log
-        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
+        $logDir = (string) (CSetting::get('logdir') ?: DOCROOT . 'db/logs'); // use setting if available, otherwise default to DOCROOT/db/logs
+//        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
         @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
+
         $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
         $fileHandle = @fopen($logFile, 'a');
         if ($fileHandle) {
