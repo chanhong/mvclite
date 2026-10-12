@@ -487,6 +487,10 @@ class CController extends Ccore
                 || ($agrp !== '' && !CSecs::IsUsrGrpComp($ugrp, $agrp, ">="))
                 || !$actionOk;
         }
+if ($notTnTg) {
+    error_log(sprintf('isNotTG deny t=%s a=%s ugrp=%s tgrp=%s agrp=%s', $task, $action, $ugrp, (string) $tgrp, $agrp));
+}
+/*        
         if ($notTnTg) {
             error_log(sprintf(
                 'isNotTG deny t=%s a=%s user=%s ugrp=%s tgrp=%s agrp=%s',
@@ -498,6 +502,7 @@ class CController extends Ccore
                 $agrp
             ));
         }
+            */
         return $notTnTg;
     }
     public function NO_delete_isNotTG($args, $shortNameRte) // always MvcLite\Router

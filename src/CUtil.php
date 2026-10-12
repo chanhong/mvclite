@@ -93,7 +93,7 @@ class CUtil
         return CDebug::_debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
 
-    public static function cutil_debug($iVar, $iStr = "", $iFormat = "")
+    public static function delete_cutil_debug($iVar, $iStr = "", $iFormat = "") // move to CDebug, not use, delete
     {
         // Check if debug is enabled via _DEBUG_ENABLED flag
 
@@ -115,7 +115,9 @@ class CUtil
         $ret = $str . $dTrace . " ";
 
         // Write to file log
-        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
+   $logDir = (string) (CSetting::get('logdir') ?: dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs');  
+   pln($logDir,'ldir');      
+//        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
         @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
         $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
         $fileHandle = @fopen($logFile, 'a');
