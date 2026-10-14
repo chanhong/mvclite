@@ -16,13 +16,22 @@ use PdoLite\PdoLite;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
-class CCore {
+class CCore
+{
 
     // -------------------------------------------------------------------------
     // Static (shared) properties — unchanged
     // -------------------------------------------------------------------------
+
+    public static $_rows;
+    public static $_Nv;
+    public static $_usr;
+    public static $_usrs;
+    public static $_uprf;
     public static $_Err;
+    public static $_tg;
     public static $_cfg;
+    public static $_stg;
     public static $_action;
     public static $_profile;
     public static $_usrInfo;
@@ -54,7 +63,7 @@ class CCore {
     public static function getContainer(): CContainer
     {
         if (!isset(self::$container)) {
-            throw new \RuntimeException('CCore: container has not been set. Call CCore::setContainer() at boot.');
+            throw new \RuntimeException('CCore:: container has not been set. Call CCore::setContainer() at boot.');
         }
         return self::$container;
     }
@@ -64,7 +73,7 @@ class CCore {
     // -------------------------------------------------------------------------
     public $cfg;
     public $stg;
-    
+
     public $retUrl;
     public $Auth;
     public $Error;
@@ -91,39 +100,53 @@ class CCore {
     public $layoutsFolder;
     protected $_class_path;
     protected $pageTitle = [];
-    protected $meta      = [];
-    protected $arr       = [];
-    protected $javascripts  = [];
-    protected $stylesheets  = [];
-    protected $styleless    = [];
+    protected $meta = [];
+    protected $arr = [];
+    protected $javascripts = [];
+    protected $stylesheets = [];
+    protected $styleless = [];
     public $className;
 
     // -------------------------------------------------------------------------
     // Constructor — dependencies are now injected; container is the fallback;
     // raw "new" instantiation is the last resort so nothing breaks today.
     // -------------------------------------------------------------------------
+    /*
+    $ref = new ReflectionClass($className);
+$params = $ref->getConstructor()->getParameters();
+
+$args = [];
+foreach ($params as $param) {
+    $type = $param->getType()->getName(); // e.g. "PdoLite", "CUtil"
+    $args[] = $this->get($type);          // resolve from bindings
+}
+
+return $ref->newInstanceArgs($args);
+
+see public\index.php step 5-8
+              */
     public function __construct(
-        ?PdoLite $db    = null,
-        ?CUtil   $ut    = null,
-        ?CHelper $h     = null,
-        mixed    $auth  = null,
-        mixed    $error = null,
-        mixed    $cfg   = null,
-        mixed    $stg   = null
+        ?PdoLite $db = null,
+        ?CUtil $ut = null,
+        ?CHelper $h = null,
+        mixed $auth = null,
+        mixed $error = null,
+        mixed $cfg = null,
+        mixed $stg = null
     ) {
         CHelper::$_lineBreak = true;
 
-        $this->db    = $db    ?? $this->resolve('db',     fn() => new PdoLite());
-        $this->ut    = $ut    ?? $this->resolve('util',   fn() => new CUtil());
-        $this->h     = $h     ?? $this->resolve('helper', fn() => new CHelper());
-        $this->Auth  = $auth  ?? $this->resolve('auth',   fn() => CAuth::getAuth('MvcLiteSALT'));
-        $this->Error = $error ?? $this->resolve('error',  fn() => CError::getError());
+        $this->db = $db ?? $this->resolve('db', fn() => new PdoLite());
+        $this->ut = $ut ?? $this->resolve('util', fn() => new CUtil());
+        $this->h = $h ?? $this->resolve('helper', fn() => new CHelper());
+        $this->Auth = $auth ?? $this->resolve('auth', fn() => CAuth::getAuth('MvcLiteSALT'));
+        $this->Error = $error ?? $this->resolve('error', fn() => CError::getError());
 
-        $this->cfg    = $cfg    ?? $this->resolve('cfg',     fn() => new CConfig());
-        $this->stg    = $stg    ?? $this->resolve('stg',     fn() => new CSetting());
+        $this->cfg = $cfg ?? $this->resolve('cfg', fn() => new CConfig());
+        $this->stg = $stg ?? $this->resolve('stg', fn() => new CSetting());
 
 
-        $this->get  = $_GET;
+        $this->get = $_GET;
         $this->post = $_POST;
 
         if ($this->className === null) {
@@ -132,7 +155,10 @@ class CCore {
 
         $this->_class_path = strtolower((new \ReflectionClass($this))->getShortName()); // "ClassName" — getShortName() works in PHP 8.x
 
-        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
+// NO        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
+
+$r = (string)($_REQUEST['r'] ?? '');
+$this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';        
     }
 
     /**
@@ -166,18 +192,69 @@ class CCore {
         return CDebug::debug($iVar, $iStr, $iFormat); // show if _MVCDebug == true
     }
 
+    public static function cleanStr($iStr, $iType = "txt", $rChar = "")
+    {
+        return CUtil::cleanStr($iStr, $iType, $rChar);
+    }
+
+    public static function _Logout() // Action->logout()?
+    {
+      CUtil::Cookie_Usr();
+      CCore::ClearUser();
+      CUtil::Add2SessVar("feedback", "You are logoff!");
+    }
+
     public static function redirect2Url($ret2URL = null)
     {
         if (is_null($ret2URL)) {
-            $ret2URL = $_SERVER['PHP_SELF'];
+            $ret2URL = $_SERVER['PHP_SELF']; // homepage with index.php
         }
         header('Location: ' . $ret2URL);
         exit;
     }
 
+    public function csrfToken(): string
+    {
+        if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || strlen($_SESSION['_csrf_token']) !== 64) {
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION['_csrf_token'];
+    }
+
+    public function hasValidCsrfPost(): bool
+    {
+        $submittedToken = $_POST['_csrf_token'] ?? null;
+        $sessionToken = $_SESSION['_csrf_token'] ?? null;
+
+        return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+            && is_string($submittedToken)
+            && is_string($sessionToken)
+            && $sessionToken !== ''
+            && hash_equals($sessionToken, $submittedToken);
+    }
+
     public static function pln($iVar, $iStr = '', $iFormat = 'br')
     {
         print CUtil::debug($iVar, $iStr, $iFormat);
+    }
+
+    public static function MeViewPath()
+    {
+      $me = CCore::qs2nvWithDefaultValue(); // this url
+      $meUrl = CSetting::get("viewpath") . "/" . $me["t"];
+      return CUtil::v2BasePath($meUrl);
+/*
+    //     NameValueCollection me = CUtils.qs2nv(); // this url
+      NameValueCollection me = CCore.qs2nvWithDefaultValue(); // this url
+      string meUrl = getAppTxt("viewpath") + "/" + me["t"];
+      return CUtils.v2BasePath(meUrl);
+      */
+    }
+
+        public static function _DbEnv(string $dbCfgName = "dbprod") // default to main db
+    {
+      return $dbCfgName . self::getAppTxt("env");
     }
 
     // -------------------------------------------------------------------------
@@ -186,20 +263,33 @@ class CCore {
 
     public function getUser($usrname, $meTable)
     {
-        $u = null;
-        if (!empty($usrname)) {
-            $where = "username ='$usrname'";
-            $u = $this->fetchRow($meTable, ['where' => $where]);
+        if (!is_scalar($usrname) || (string) $usrname === '') {
+            return null;
         }
-        return $u;
+
+        $table = $this->quoteIdentifierPath((string) $meTable);
+        $rows = $this->fetchRowsByQuery("SELECT * FROM $table WHERE username = ?", [(string) $usrname]);
+        return $rows[0] ?? null;
     }
 
-    protected function fetchRow(string $table, array $options = []): mixed
+    protected function fetchRowsByQuery(string $query, array $params): array
     {
-        return $this->db->dbRow($table, $options);
+        return CDbPdo::oleGetRowsParam($query, $params);
     }
 
-    public function isAuthorized($validate, $where, $meTable)
+    protected function quoteIdentifierPath(string $identifier): string
+    {
+        $parts = explode('.', $identifier);
+        foreach ($parts as $part) {
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $part)) {
+                throw new \InvalidArgumentException('Invalid SQL identifier.');
+            }
+        }
+
+        return implode('.', array_map(static fn(string $part): string => '[' . $part . ']', $parts));
+    }
+
+    public function dbIsAuthorized($validate, $where, $meTable)
     {
         if (!empty($validate) and !empty($where) and !empty($meTable)) {
             $this->Auth->logout();
@@ -209,4 +299,205 @@ class CCore {
             }
         }
     }
+    public static function SetView(string $sView, string $sTask = "")
+    {
+        $ret = "";
+        $vPath = CSetting::get(("viewpath"));
+        if ($sTask != "") {
+            $vPath = $vPath . "/" . $sTask;
+        }
+
+        $fname = $vPath . "/" . $sView . CSetting::get(("viewext"));
+        $fullFilePath = CFiles::RealFilePath($fname);
+        if (file_exists($fullFilePath)) {
+            $ret = $fname;
+        }
+        return $ret;
+    }
+
+    public static function getAppTxt(string $fb = "fbdmsg", string $lower = ""): string
+    {
+        $ret = CCore::$_cfg['app'][$fb]
+            ?? CCore::$_cfg['info'][$fb]
+            ?? CCore::$_cfg[$fb]          // top-level cfg key
+            ?? CCore::$_stg[$fb]          // top-level stg key (logintype, weblogin etc.)
+            ?? "";
+
+        // unwrap single-element arrays from legacy format ["web"] → "web"
+        if (is_array($ret)) {
+            $ret = $ret[0] ?? "";
+        }
+
+        if (!CString::IsEmpty($lower)) {
+            $ret = strtolower($ret);
+        }
+        //pln($ret, "getAppTxt-$fb");
+        return $ret;
+    }
+    public static function qs2nvWithDefaultValue()
+    {
+        $tak = CSetting::get('takey'); // split , to array // Passing null to parameter #1 ($string)
+        $kArray = explode(',',$tak) ?? []; // split , to array
+        $defCtrl = strtolower(CSetting::get('defctrl')); //Passing null to parameter #1 ($string)
+        $defView = strtolower(CSetting::get('defview')); //Passing null to parameter #1 ($string)
+        $qsa = CUtil::qs2nv();
+
+        if ($qsa != null) {
+            if ($qsa[$kArray[0]] != null) // task
+            {
+                $qsa[$kArray[0]] = strtolower($qsa[$kArray[0]]);
+            }
+            if (isset($qsa[$kArray[1]])) // action
+            {
+                $qsa[$kArray[1]] = strtolower($qsa[$kArray[1]]);
+            }
+        } else {
+            $nv = [];
+            // set default controller and view
+            $nv[$kArray[0]] = $defCtrl; // task
+            $nv[$kArray[1]] = $defView; // action
+            $qsa = $nv;
+        }
+
+        // if no value set the default 
+        if ($qsa[$kArray[0]] == null) // task
+        {
+            $qsa[$kArray[0]] = $defCtrl;
+        }
+        if (isset($qsa[$kArray[1]]) && $qsa[$kArray[1]] == null) // action
+        {
+            $qsa[$kArray[1]] = $defView;
+        }
+//        pln($qsa, "qs2nvWithDefaultValue");
+        return $qsa;
+    }
+    public static function getSelectedViewSet()
+    {
+        $selCtrl = strtolower(CSetting::get(("selctrl")));
+        //                pln($selCtrl, "getSelectedViewSet-selctrl-return");
+        return $selCtrl;
+    }
+
+
+    public static function IsLoginedUser()
+    {
+        return CUtil::getSessTxt("usrname");
+    }
+    public static function GetUsrName()
+    {
+        $ret = CUtil::getSessTxt("usrname"); // use session instead of static _usr
+        //      CMsg::_msg($ret, "GetUsrName-b");
+
+        // _usr set at login old code, for ref
+        static::$_usr = CUtil::getSessNv("uinfo"); // use session instead of static _usr
+        if (isset(CCore::$_usr["usrname"]) && CCore::$_usr != null && !CString::IsEmpty(CCore::$_usr["usrname"])) {
+            $ret = CCore::$_usr["usrname"];
+        }
+        ;
+        //     CMsg::_msg($ret, "GetUsrName-a");
+        return $ret;
+    }
+    // =============================================
+// ClearUser
+// =============================================
+    public static function ClearUser()
+    {
+        // Do NOT use session_destroy() or session_unset() if you still need debug messages
+        unset($_SESSION['usrname']);
+        unset($_SESSION['usrgroup'], $_SESSION['usrentity']);
+        unset($_SESSION['uinfo']);
+        // unset($_SESSION['_uprf']);   // commented in original
+        unset($_SESSION['loggedin']);
+        unset($_SESSION['uinfotxt']);
+
+        CCore::$_cfg['logoff'] = '';   // reset
+        CCore::$_uprf = null;
+        CCore::$_usr = null;
+    }
+    public static function CLogin($frm)
+    {
+        $ret = false;
+        $msg = "Please login!";
+        $app = "";
+        $usrname = "";
+        $usrentity = "";
+        $loginType = "";
+        $pw = "";
+        //      CMsg::_dmsg($frm, "_Login-frm");
+        CUtil::Cookie_Usr(); // clear cookie
+        self::ClearUser();
+
+        if ($frm != null && count($frm) > 0 && CString::IsEmpty($frm["logintype"]) == false) {
+            //        CUtil::Add2SessVar("feedback", "");
+            $app = $frm["appid"];
+            $usrname = $frm["user_name"];
+            $usrentity = (isset($frm["uentity"]) && $frm["uentity"] != null && strlen($frm["uentity"]) > 0) ? $frm["uentity"] : "";
+            $pw = $frm["password"];
+            $loginType = strtolower($frm["logintype"]);
+            CSecs::setUserLoginInfo($app, $usrname, $usrentity); // set _usr 
+            $_usr = CUtil::getSessNv("uinfo"); // use session instead
+
+            CMsg::_dmsg($_usr, "_Login");
+            if (
+                $_usr != null && CString::IsEmpty($_usr["usrname"]) == false
+                //          && $usrname == $_usr["usrname"] // why?
+            ) {
+                if ($loginType == "web" && CString::IsEmpty($pw) == false) {
+                    $hash = CSecs::GetMd5Hash($pw);
+                    /*
+                    CMsg::_dprt($hash, "hash");
+                    CMsg::_dprt($_usr["usrpw"], "usrhash");
+                    CMsg::_dmsg($pw, "pw");
+                    CMsg::_dmsg($hash, "hash");
+                    CMsg::_dmsg($_usr["usrpw"], "usrpw");
+         */
+                    if ($hash == $_usr["usrpw"]) {
+                        $_usr["litype"] = $loginType;
+                        //              CMsg::_dmsg($_usr, "login-web");
+                        $ret = true;
+                    } else {
+                        //              CMsg::_dprt((NameValueCollection)_usr, "_Login-_usrFailed");
+                        CMsg::_dmsg($_usr, "login-web-hash failed");
+                        CUtil::Add2SessVar("alert", "Failed password validation!");
+                    }
+                } else if ($loginType == "win" && CString::IsEmpty(pw)) {
+                    if ($usrname == CSecs::winUser()) {
+                        $_usr["litype"] = $loginType;
+                        //              CMsg::_dmsg($_usr, "login-win");
+                        $ret = true;
+                    }
+                }
+            }
+
+            if ($ret == true) {
+                if (session_status() === PHP_SESSION_ACTIVE) {
+                    session_regenerate_id(true);
+                }
+                $loggedin = CSecs::setUsrInfoText();
+                $msg = "You are login as " . $loggedin; // this set the variable for a successful login
+                $_usr['level'] = $_usr['usrgroup'];
+                $_SESSION["uinfo"] = $_usr; // get litype into session
+                $_SESSION['uinfo']['level'] = $_usr['usrgroup'];   // patch for PHP users login access       
+                $_SESSION["loggedin"] = $loggedin; // also set loggedin in session for consistency and future checks
+                static::$_usr["loggedin"] = $loggedin; // set loggedin for the current user session
+                CMsg::_dmsg($_usr, $msg);
+                CUtil::Add2SessVar("feedback", $msg);
+            }
+            if ($ret !== true) {
+                self::ClearUser();
+            }
+        } else {
+            CUtil::Add2SessVar("alert", $msg);
+        }
+        return $ret;
+    }
+
+    /**
+     * Legacy name used by the converted C# login views.
+     */
+    public static function _Login($frm): bool
+    {
+        return self::CLogin(is_array($frm) ? $frm : []);
+    }
+
 }

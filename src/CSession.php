@@ -16,8 +16,11 @@ class HttpContext
 
     public function __construct()
     {
-        // In PHP, we link the Session property to the global $_SESSION superglobal
-        if (session_status() === PHP_SESSION_NONE) {
+        // In PHP, we link the Session property to the global $_SESSION superglobal.
+        // Do not start a native session when legacy code has already seeded
+        // the superglobal array for tests or request bootstrap; that would
+        // replace the current session data with an empty one.
+        if (session_status() === PHP_SESSION_NONE && empty($_SESSION)) {
             @session_start();
         }
         $this->Session = &$_SESSION;
@@ -67,13 +70,18 @@ final class CSession
     $this->_session = $session;
   }
 
+  private static function ensureSessionStarted(): void
+  {
+      if (session_status() === PHP_SESSION_NONE && empty($_SESSION)) {
+          @session_start();
+      }
+  }
+
   public static function clearSession()
   {
 // Start the session (required before modifying it)
 //session_start();
-if (session_status() == PHP_SESSION_NONE) {
-session_start();
-}
+self::ensureSessionStarted();
 // 1. Unset all session variables
 $_SESSION = array();
 
@@ -97,6 +105,72 @@ session_destroy();
 // Optional: Redirect or confirm
 //echo "Session cleared successfully.";
 }
+
+  public static function add2SessVar($iVar, $msg)
+  {
+      self::ensureSessionStarted();
+      if (empty($_SESSION[$iVar])) {
+          $_SESSION[$iVar] = $msg;
+      } else {
+          $_SESSION[$iVar] .= " $msg";
+      }
+  }
+
+  public static function getSessTxt(string $fb = "feedback")
+  {
+      self::ensureSessionStarted();
+      return $_SESSION[$fb] ?? '';
+  }
+
+  public static function getSessNv(string $key): array
+  {
+      self::ensureSessionStarted();
+      $val = $_SESSION[$key] ?? [];
+      return is_array($val) ? $val : [];
+  }
+
+  public static function Cookies_Get(string $key = "")
+  {
+      return $_COOKIE[$key] ?? '';
+  }
+
+  public static function Cookie_Usr($uinfo = null)
+  {
+      $app = strtolower((string) CSetting::get("defctrl", "front"));
+      $siteRoot = (string) CSetting::get("urlsite", "") . (string) CSetting::get("siteroot", "");
+      $appNames = CSetting::get("apps", $app);
+      $apps = is_string($appNames) ? array_map('trim', explode(',', $appNames)) : [];
+      $apps[] = $app;
+      $cookieNames = ["appid"];
+
+      foreach (array_unique(array_filter($apps, static fn($name) => $name !== '')) as $appName) {
+          $prefix = $siteRoot . "_" . strtolower($appName);
+          foreach (["_usrname", "_usrpw", "_usrentity", "_id_hash"] as $suffix) {
+              $cookieNames[] = $prefix . $suffix;
+          }
+      }
+
+      $options = [
+          'expires' => time() - 3600,
+          'path' => '/',
+          'secure' => !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off',
+          'httponly' => true,
+          'samesite' => 'Lax',
+      ];
+      foreach ($cookieNames as $cookieName) {
+          if (isset($_COOKIE[$cookieName])) {
+              unset($_COOKIE[$cookieName]);
+              setcookie($cookieName, '', $options);
+          }
+      }
+  }
+
+  public static function Cookies_Set(string $key, string $value, $expires)
+  {
+      $mach_name = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+      setcookie($key, $value, (int) $expires, '/', $mach_name);
+  }
+
   /**
    * Static property LoggedInID
    */

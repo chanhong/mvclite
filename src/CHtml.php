@@ -12,15 +12,22 @@ class CHtml
 
     public static function FrmBeg($postUrl = "", $cls = "")
     {
-        return sprintf("<form method=\"post\" action=\"%s\" class=\"%s\">", htmlspecialchars($postUrl, ENT_QUOTES, 'UTF-8'), htmlspecialchars($cls, ENT_QUOTES, 'UTF-8'));
+        return sprintf(
+            "<form method=\"post\" action=\"%s\" class=\"%s\">",
+            htmlspecialchars((string) ($postUrl ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            htmlspecialchars((string) ($cls ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        );
     }
 
-    public static function FrmEnd($retUrl = "")
+    public static function FrmEnd($retUrl = "?")
     {
-        return sprintf("<input name=\"rurl\" type = \"hidden\" value=\"%s\"></form>", htmlspecialchars($retUrl, ENT_QUOTES, 'UTF-8'));
+        return sprintf(
+            "<input name=\"rurl\" type = \"hidden\" value=\"%s\"></form>",
+            htmlspecialchars((string) ($retUrl ?? '?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        );
     }
 
-    public static function Tag($iTag, $iTitle, $iTip = "")
+    public static function Tag_cs($iTag, $iTitle, $iTip = "") // bad???
     {
         $cTag = strtolower($iTag);
         $stip = (CString::IsEmpty($iTip) == false)
@@ -28,10 +35,62 @@ class CHtml
             : "";
         return sprintf("<%s %s>%s</%s>", $cTag, $stip, htmlspecialchars($iTitle, ENT_QUOTES, 'UTF-8'), $cTag);
     }
+    public static function Tag($iTag, $iTitle, $iTip = "")
+    {
+        $cTag = self::safeTagName($iTag);
+        $stip = self::titleAttribute($iTip);
+        $title = htmlspecialchars((string) $iTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return sprintf("<%s%s>%s</%s>", $cTag, $stip, $title, $cTag);
+    }
+
+    public static function TagWithHtml($iTag, $html, $iTip = "")
+    {
+        $cTag = self::safeTagName($iTag);
+        $stip = self::titleAttribute($iTip);
+        return sprintf("<%s%s>%s</%s>", $cTag, $stip, $html, $cTag);
+    }
+
+    private static function safeTagName($iTag): string
+    {
+        $tag = strtolower((string) $iTag);
+        if (!preg_match('/^[a-z][a-z0-9-]*$/', $tag)) {
+            throw new \InvalidArgumentException('Invalid HTML tag name.');
+        }
+
+        return $tag;
+    }
+
+    private static function titleAttribute($iTip): string
+    {
+        return CString::IsEmpty($iTip) == false
+            ? sprintf(" title=\"%s\"", htmlspecialchars((string) $iTip, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'))
+            : "";
+    }
 
     public static function Img($iVar)
     {
-        return "<img class=\"icon\" src=\"" . htmlspecialchars($iVar, ENT_QUOTES, 'UTF-8') . "\">";
+        $raw = trim((string) $iVar);
+        $src = $raw;
+
+        if (preg_match('/<\s*img\b[^>]*\s+src\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))[^>]*>/is', $raw, $matches)) {
+            $src = $matches[1] ?? $matches[2] ?? $matches[3] ?? $raw;
+        }
+
+        $src = trim($src);
+        if ($src === '' || preg_match('/^\s*(?:javascript|vbscript|data)\s*:/i', $src) || str_contains($src, 'onerror=')) {
+            $src = 'about:blank';
+        }
+
+        if (preg_match('/^(?:[a-z]+:\s*)?\/?(?:etc|var|proc|root|home)\//i', $src) || preg_match('/^\/+etc\//i', $src)) {
+            $src = 'about:blank';
+        }
+
+        if (preg_match('/[<>"\']/', $src)) {
+            $src = preg_replace('/[<>"\']+/', '', $src) ?? '';
+        }
+
+        $encoded = htmlspecialchars($src, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return '<img class="icon" src="' . $encoded . '">';
     }
 
     public static function JsxSrc($file)
@@ -56,25 +115,97 @@ class CHtml
         return "<link rel=\"stylesheet\" type=\"text/css\" href=\"" . htmlspecialchars($file, ENT_QUOTES, 'UTF-8') . "\"" . $title . " media=\"" . htmlspecialchars($media, ENT_QUOTES, 'UTF-8') . "\" />";
     }
 
-    public static function Href($iVar)
+    public static function Href_selfurl($iVar)
     {
         return "href=\"" . CUtil::selfUrl() . "/" . CUtil::tap($iVar) . '"';
     }
+    public static function Href_cs($iVar)
+    {
+        return "href=\"" . CUtil::tap($iVar) . '"';
+    }
 
+    public static function ahref($v, $s)
+    {
+        return "<a href=\"" . $v . "\">" . $s . "</a>";
+    }
+
+    static function href($iVar)
+    {
+        return 'href="' . CUtil::tap($iVar) . '"';
+    }
     public static function JsConfirm($Yes = "")
     {
         return (CString::IsEmpty($Yes) == false) ? " onclick=\"return confirm('Are you sure?');\"" : "";
     }
 
-    public static function Alink($iVar)
+    static function alink($iVar) // WORK well
+    {
+//           error_log((new Exception)->getTraceAsString());
+        if (empty($iVar) or (!is_array($iVar)))
+            return '';  // ← return empty string, not null //Warning: Array to string conversion
+
+        $confirm = $target = $title = $imgortext = $buff = $href = '';
+        foreach ($iVar as $key => $value) {
+            switch ($key) {
+                case "confirm":
+                    $confirm = self::jsConfirm('Y');
+                    break;
+                case "path":
+                    $clean = is_string($value) ? trim($value) : '';
+                    if ($clean === '' || preg_match('/^\s*(?:javascript|vbscript|data)\s*:/i', $clean)) {
+                        $clean = '#';
+                    } else {
+                        $clean = CUtil::tap($clean);
+                    }
+                    $href = ' href="' . htmlspecialchars($clean, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                    break;
+                case "href":
+                    $clean = is_string($value) ? trim((string) $value) : '';
+                    if ($clean === '' || preg_match('/^\s*(?:javascript|vbscript|data)\s*:/i', $clean)) {
+                        $clean = '#';
+                    }
+                    $href = ' href="' . htmlspecialchars($clean, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                    break;
+                case "text":
+                    $imgortext = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    break;
+                case "title_hlp":
+                    $title = $imgortext = $text = ucfirst((string) $value);
+                    break;
+                case "title":
+                    if ($imgortext === '') {
+                        $imgortext = ucfirst((string) $value);
+                    }
+                    $title = " title=\"" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                    break;
+                case "target":
+                    $target = " target=\"" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                    break;
+                case "mailto":
+                    $href = " href=\"mailto:" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                    break;
+                case "file":
+                    $href = " href=\"file:" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                    break;
+                case "img":
+                    if (!empty($value))
+                        $imgortext = self::Img($value);
+                    break;
+                default:
+                    $buff .= " $key=\"" . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            }
+        }
+        $ret = '<a' . $href . $confirm . $title . $target . rtrim($buff) . '>' . $imgortext . '</a>';
+        return $ret;
+    }
+
+    public static function alink_bad_wo_selfurl($iVar)
     {
         $confirm = $imgortext = $buff = $target = $href = $title = $value = "";
-        
+        //        pln($iVar,'Alink');
         // In PHP, $iVar is expected to be an associative array (NameValueCollection equivalent)
-        foreach ($iVar as $key => $value)
-        {
-            switch ($key)
-            {
+        foreach ($iVar as $key => $value) {
+            switch ($key) {
                 case "title":
                     $title = " title=\"" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
                     break;
@@ -103,18 +234,26 @@ class CHtml
                     $imgortext = self::Img($value);
                     break;
                 default:
-                    $buff .= sprintf(" %s=\"%s\"", $key, htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
+                    //                    $buff .= sprintf(" %s=\"%s\"", $key, htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
+                    $buff .= "$key='$value'";
+
                     break;
             }
         }
-        return "<a" . $href . $confirm . $title . $target . $buff . '>' . $imgortext . "</a>";
+        $ret = "<a " . $href . $confirm . $title . $target . $buff . '>' . $imgortext . "</a>";
+        $ret = '<a ' . $href . $confirm . $target . $buff . '>' . $imgortext . '</a>';
+        //        pln($ret,'alink');
+        return $ret;
     }
+
+
+
+
 
     public static function marquee($str)
     {
         $ret = "";
-        if ($str !== null)
-        {
+        if ($str !== null) {
             $ret = "<marquee behavior='scroll' direction='left'>" . htmlspecialchars($str, ENT_QUOTES, 'UTF-8') . "</marquee>";
         }
         return $ret;
@@ -122,17 +261,13 @@ class CHtml
 
     public static function _bold($str, $color = "")
     {
-        if (strlen($str) > 0)
-        {
+        if (strlen($str) > 0) {
             $scolor = $color;
-            if (strlen($color) > 0)
-            {
+            if (strlen($color) > 0) {
                 $scolor = " color='" . $color . "'";
             }
             return "<b><i><font size=-1" . $scolor . ">" . htmlspecialchars($str, ENT_QUOTES, 'UTF-8') . "</font></i></b>";
-        }
-        else
-        {
+        } else {
             return $str;
         }
     }
@@ -140,8 +275,7 @@ class CHtml
     public static function _setMsg($iStr, $color = "red")
     {
         // if (iStr != null || iStr.Length > 0)
-        if (!CString::IsEmpty($iStr))
-        {
+        if (!CString::IsEmpty($iStr)) {
             $iStr = sprintf("<%s>%s</%s>", "center", self::_bold($iStr, $color), "center");
         }
         return $iStr;
@@ -153,24 +287,31 @@ class CHtml
     }
 
     /**
-     * Handles both List<string> and List<SelectListItem> overloads
+     * Handles string options, SelectListItem objects, and Value/Text option arrays.
      */
     public static function dropDnList($selName, $iVarArray, $selVar = "")
     {
         // @Html.DropDownList("DdlPageSize", "", PageSizes, "Letter", ""); only work in Razor file
         $sb = "";
-        foreach ($iVarArray as $s)
-        {
-            $val = "";
+        foreach ($iVarArray as $s) {
             if ($s instanceof SelectListItem) {
                 $val = $s->Value;
+                $text = $s->Text;
+            } elseif (is_array($s)) {
+                $val = $s['Value'];
+                $text = $s['Text'];
             } else {
                 $val = $s;
+                $text = $s;
             }
 
-            $selected = ($val == $selVar) ? " selected" : "";
-            // sb.Append(String.Format("<option{0}>{1}</option>", selected, s));
-            $sb .= sprintf("<option%s>%s</option>", $selected, htmlspecialchars($val, ENT_QUOTES, 'UTF-8'));
+            $selected = ((string) $val == (string) $selVar) ? " selected" : "";
+            $sb .= sprintf(
+                '<option value="%s"%s>%s</option>',
+                htmlspecialchars((string) $val, ENT_QUOTES, 'UTF-8'),
+                $selected,
+                htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8')
+            );
         }
         // return String.Format("<select id=\"{0}\" name=\"{0}\">{1}</select>", selName, sb);
         return sprintf("<select id=\"%s\" name=\"%s\">%s</select>", htmlspecialchars($selName, ENT_QUOTES, 'UTF-8'), htmlspecialchars($selName, ENT_QUOTES, 'UTF-8'), $sb);
@@ -179,8 +320,7 @@ class CHtml
     public static function filterByForm($iSelName, $iVarArray, $iSelVar, $meqs)
     {
         $ret = "";
-        if ($iVarArray !== null)
-        {
+        if ($iVarArray !== null) {
             $ret = self::FrmBeg($meqs, "filterBy") . "Filter by:&nbsp;&nbsp;"
                 . self::dropDnList($iSelName, $iVarArray, $iSelVar)
                 . "<input type='submit' value='Go'>"
@@ -192,8 +332,7 @@ class CHtml
     public static function jsGrid_Ajax_Sendemail($url, $reload = "")
     {
         $reld = "";
-        if (strlen($reload) > 0)
-        {
+        if (strlen($reload) > 0) {
             $reld = "location.reload();";
         }
         return sprintf("sendItem: function(item) { return $.ajax({ type: \"GET\",url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
@@ -202,8 +341,7 @@ class CHtml
     public static function jsGrid_Ajax_Clone($url, $reload = "")
     {
         $reld = "";
-        if (strlen($reload) > 0)
-        {
+        if (strlen($reload) > 0) {
             $reld = "location.reload();";
         }
         return sprintf("cloneItem: function(item) { return $.ajax({ type: \"GET\",url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
@@ -217,8 +355,7 @@ class CHtml
     public static function jsGrid_Ajax_Create($url, $reload = "")
     {
         $reld = "";
-        if (strlen($reload) > 0)
-        {
+        if (strlen($reload) > 0) {
             $reld = "location.reload();";
         }
         return sprintf("insertItem: function(item) { return $.ajax({ type: \"POST\",url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
@@ -227,8 +364,7 @@ class CHtml
     public static function jsGrid_Ajax_Update($url, $reload = "")
     {
         $reld = "";
-        if (strlen($reload) > 0)
-        {
+        if (strlen($reload) > 0) {
             $reld = "location.reload();";
         }
         return sprintf("updateItem: function(item) { return $.ajax({ type: \"PUT\", url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
@@ -262,26 +398,23 @@ class CHtml
         $cnt = 0;
         $sone = sprintf("<tr class=\"%s\">", $clsName["tcls"]);
         $sbh .= $sone;
-        foreach (array_keys($fName) as $s)
-        {
-            $ka = CUtil::Str2a(',', $fName[$s]); // get value of fName[s]
+        foreach (array_keys($fName) as $s) {
+            $ka = CUtil::Str2a(',', isset($fName[$s]) ? (string)$fName[$s][0] : ""); // get value of fName[s]
             $stitle = (strlen($ka[0]) > 0) ? $ka[0] : CString::ProperCase($s);
             $sone = sprintf("<th class=\"%s\">%s</th>", htmlspecialchars($clsName["tcls"], ENT_QUOTES, 'UTF-8'), htmlspecialchars($stitle, ENT_QUOTES, 'UTF-8'));
             $sbh .= $sone;
         }
         $sbh .= "</tr>";
 
-        foreach ($rows as $r)
-        {
+        foreach ($rows as $r) {
             $cnt++;
             $sone = sprintf("<tr class=\"%s%s\">", htmlspecialchars($clsName["rcls"], ENT_QUOTES, 'UTF-8'), CUtil::evenOrOdd($cnt));
             $sbr .= $sone;
             $rNv = CUtil::dict2nv($r); // convert Nv to get field name
-            foreach (array_keys($fName) as $s)
-            {
-                $ka = CUtil::Str2a(',', $fName[$s]); // get value of fName[s]
-                $salign = (strlen($ka[1]) > 0) ? $ka[1] : "center";
-                $sone = sprintf("<td align=\"%s\">%s</td>", htmlspecialchars($salign, ENT_QUOTES, 'UTF-8'), htmlspecialchars($rNv[$s], ENT_QUOTES, 'UTF-8'));
+            foreach (array_keys($fName) as $s) {
+                $ka = CUtil::Str2a(',', isset($fName[$s]) ? (string)$fName[$s][0] : ""); // get value of fName[s]
+                $salign = (isset($ka[1]) && strlen($ka[1]) > 0) ? $ka[1] : "center";
+                $sone = sprintf("<td align=\"%s\">%s</td>", htmlspecialchars($salign, ENT_QUOTES, 'UTF-8'), htmlspecialchars($rNv[$s] ?? "", ENT_QUOTES, 'UTF-8'));
                 $sbr .= $sone;
             }
         }
@@ -294,32 +427,39 @@ class CHtml
         return sprintf("<input type=\"submit\" name=\"submit\" value=\"%s\">", htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
     }
 
-    public static function Sanitize($html) {
+    public static function Sanitize($html)
+    {
         // Basic sanitization mimicking the behavior of typical XSS sanitizers
-        if (empty($html)) return $html;
+        if (empty($html))
+            return $html;
         // Strip scripts and styles
         $html = preg_replace('/<(script|style|iframe|object|embed).*?>.*?<\/\1>/si', '', $html);
         // Strip event handlers
         $html = preg_replace('/ on\w+="[^"]*"/i', '', $html);
         $html = preg_replace('/ on\w+=\'[^\']*\'/i', '', $html);
         return $html;
-    }  
-    
+    }
+
     private static $instance;
-    public function User() {
+    public function User()
+    {
         return new class {
-            public function Identity() {
+            public function Identity()
+            {
                 return new class {
-                    public function Name() {
+                    public function Name()
+                    {
                         return $_SERVER['REMOTE_USER'] ?? '';
                     }
                 };
             }
         };
     }
-    public static function Current() {
-        if (!self::$instance) self::$instance = new self();
+    public static function Current()
+    {
+        if (!self::$instance)
+            self::$instance = new self();
         return self::$instance;
-    }      
+    }
 }
 ?>

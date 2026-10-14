@@ -140,4 +140,36 @@ class CDate
         return $FiscalYrDate;
     }
 
+    public static function getDateArrayFromFiles($listDir)
+    {
+        $dateA = [];
+        foreach ($listDir as $fspec) {
+            $path_parts = pathinfo($fspec);
+            $filename = $path_parts['basename'];
+            $whichDate = date("Y/m/d", filemtime($fspec));
+            $dateA[$whichDate] = $whichDate;
+        }
+        return $dateA;
+    }
+
+    public static function getFirstLastDate($dateA, $dFormat = "Y/m/d")
+    {
+        $fDate = $lDate = date($dFormat, time());
+        asort($dateA);
+        $i = 0;
+        $maxItem = count($dateA);
+        foreach ($dateA as $k => $one) {
+            if ($i == 0) {
+                $firstDate = $k;
+            }
+            if ($i == $maxItem - 1) {
+                $lastDate = $k;
+            }
+            $i++;
+        }
+        $fDate = date($dFormat, strtotime($firstDate));
+        $lDate = date($dFormat, strtotime($lastDate));
+        return [$fDate, $lDate];
+    }
+
 }
