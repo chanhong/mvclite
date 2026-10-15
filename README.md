@@ -22,3 +22,8 @@ if (file_exists(MVCLite. '/bootstrap.mvclite.php'))
 // might not need this
 
 
+Add this framework as submodule or subtree
+NEW main repo
+git submodule add https://github.com/chanhong/mvclite.git apps/Lib/mvclite
+git subtree add --prefix=apps/Lib/mvclite mvclite master
+
