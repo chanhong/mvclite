@@ -27,3 +27,12 @@ NEW main repo
 git submodule add https://github.com/chanhong/mvclite.git apps/Lib/mvclite
 git subtree add --prefix=apps/Lib/mvclite mvclite master
 
+git add .
+git commit -m "Remove embedded mvclite before subtree import"
+git subtree add --prefix=apps/Lib/mvclite mvclite master
+
+// push or pull from mvclite master
+git subtree push --prefix=apps/Lib/mvclite mvclite master
+git subtree pull --prefix=apps/Lib/mvclite mvclite master
+
+
