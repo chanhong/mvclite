@@ -174,7 +174,7 @@ class CMenu
         if (empty($iList)) {
             return [];
         }
-        return array_values(array_filter(explode($delimit, $iList), 'strlen'));
+        return array_values(array_filter(CUtil::str2a($delimit, $iList), 'strlen'));
     }
 
     /**

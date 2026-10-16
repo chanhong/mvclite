@@ -9,7 +9,7 @@
  *
  *   $container->singleton('db',     fn() => new \PdoLite\PdoLite());
  *   $container->singleton('util',   fn() => new \MvcLite\CUtil());
- *   $container->singleton('helper', fn() => new \MvcLite\CHelper());
+ *   $container->singleton('helper', fn() => new \MvcLite\CHtml());
  *   $container->singleton('auth',   fn() => \MvcLite\CAuth::getAuth('MvcLiteSALT'));
  *   $container->singleton('error',  fn() => \MvcLite\CError::getError());
  *
@@ -114,7 +114,7 @@ class CContainer
     }
     3. Constructor with type-hinted class parameters
     class CMyService {
-        public function __construct(CUtil $ut, CHelper $h) { }  // ← auto-wired recursively
+        public function __construct(CUtil $ut, CHtml $h) { }  // ← auto-wired recursively
 
     // It will NOT auto-wire when constructor has:
         public function __construct(string $salt) { }    // ← primitive, no type to reflect on

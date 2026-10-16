@@ -50,7 +50,7 @@ class CCore
      *   $c = new \MvcLite\Container();
      *   $c->singleton('db',     fn() => new \PdoLite\PdoLite());
      *   $c->singleton('util',   fn() => new \MvcLite\CUtil());
-     *   $c->singleton('helper', fn() => new \MvcLite\CHelper());
+     *   $c->singleton('helper', fn() => new \MvcLite\CHtml());
      *   $c->singleton('auth',   fn() => \MvcLite\CAuth::getAuth('MvcLiteSALT'));
      *   $c->singleton('error',  fn() => \MvcLite\CError::getError());
      *   \MvcLite\CCore::setContainer($c);
@@ -128,17 +128,17 @@ see public\index.php step 5-8
     public function __construct(
         ?PdoLite $db = null,
         ?CUtil $ut = null,
-        ?CHelper $h = null,
+        ?CHtml $h = null,
         mixed $auth = null,
         mixed $error = null,
         mixed $cfg = null,
         mixed $stg = null
     ) {
-        CHelper::$_lineBreak = true;
+        CHtml::$_lineBreak = true;
 
         $this->db = $db ?? $this->resolve('db', fn() => new PdoLite());
         $this->ut = $ut ?? $this->resolve('util', fn() => new CUtil());
-        $this->h = $h ?? $this->resolve('helper', fn() => new CHelper());
+        $this->h = $h ?? $this->resolve('helper', fn() => new CHtml());
         $this->Auth = $auth ?? $this->resolve('auth', fn() => CAuth::getAuth('MvcLiteSALT'));
         $this->Error = $error ?? $this->resolve('error', fn() => CError::getError());
 

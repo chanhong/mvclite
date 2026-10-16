@@ -8,7 +8,113 @@ class CHtml
     // HttpContext.Current does not have a direct 1:1 equivalent in PHP. 
     // We maintain the static property for structural parity.
     public static $_ctx_c = null;
+    public static $_lineBreak = false;
     public $Title;
+    public $ut;
+    public $lineBreak;
+
+    public function __construct(?CUtil $ut = null)
+    {
+        $this->ut = $ut ?? new CUtil();
+        $this->lineBreak = self::$_lineBreak ? "\n" : "";
+    }
+
+    private static function lineBreakPrefix(): string
+    {
+        return self::$_lineBreak ? "\n" : "";
+    }
+
+    public static function urlKeyPair($path, $keys)
+    {
+        $parts = explode('/', ltrim(CUtil::clean((string) $path, 'txt'), '/'));
+        $query = '';
+        foreach ($keys as $index => $key) {
+            $value = $parts[$index] ?? '';
+            if ($value !== '') {
+                $query .= ($index === 0 ? '?' : '&') . $key . '=' . $value;
+            }
+        }
+        return $query;
+    }
+
+    public static function path2URL($path, $keys)
+    {
+        $path = (string) $path;
+        if (str_starts_with($path, '/')) {
+            return self::urlKeyPair($path, $keys);
+        }
+        return str_starts_with($path, '?') ? $path : '?';
+    }
+
+    public static function tap($path)
+    {
+        return self::path2URL($path, ['t', 'a', 'p1', 'p2']);
+    }
+
+    public static function tai($path)
+    {
+        return self::path2URL($path, ['t', 'a', 'id']);
+    }
+
+    public static function bad_alink($options)
+    {
+        return self::alink($options);
+    }
+
+    public static function bold($text, $color = "darkgreen")
+    {
+        $color = empty($color) ? 'darkgreen' : $color;
+        $colorAttribute = $color !== ""
+            ? " color=\"" . htmlspecialchars((string) $color, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\""
+            : "";
+        return "<b><i><font size=+1" . $colorAttribute . ">"
+            . htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . "</font></i></b>";
+    }
+
+    public static function select($options, $selected, $name)
+    {
+        $html = '';
+        foreach ($options as $option) {
+            $value = (string) $option;
+            $selectedAttribute = ((string) $selected === $value) ? ' selected' : '';
+            $html .= '<option' . $selectedAttribute . '>'
+                . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                . '</option>';
+        }
+        return '<select id ="' . htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '" name ="' . htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '">' . $html . '</select>&nbsp;';
+    }
+
+    public static function less($file = "screen.less", $title = "", $media = "all")
+    {
+        $titleAttribute = !CString::IsEmpty($title)
+            ? ' title="' . htmlspecialchars((string) $title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"'
+            : '';
+        return self::lineBreakPrefix() . '<link rel="stylesheet/less" type="text/css" href="'
+            . htmlspecialchars((string) $file, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"'
+            . $titleAttribute . ' media="'
+            . htmlspecialchars((string) $media, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" />';
+    }
+
+    public static function classTROddOrEven($lineCount, $className)
+    {
+        $suffix = $lineCount % 2 === 0 ? 'Even' : 'Odd';
+        return ' class="' . htmlspecialchars((string) $className . $suffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+    }
+
+    public static function classOddOrEven($html, $lineCount, $className)
+    {
+        return '<tr' . self::classTROddOrEven($lineCount, $className) . '>' . $html . '</tr>';
+    }
+
+    public static function meta($charset)
+    {
+        return '<meta http-equiv="X-UA-Compatible" content="text/html; IE=edge; charset='
+            . htmlspecialchars((string) $charset, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '" />';
+    }
 
     public static function FrmBeg($postUrl = "", $cls = "")
     {
@@ -100,19 +206,22 @@ class CHtml
 
     public static function JsSrc($file)
     {
-        return "<script type=\"text/javascript\" src=\"" . $file . "\"></script>";
+        return self::lineBreakPrefix()
+            . "<script type=\"text/javascript\" src=\"" . $file . "\"></script>";
     }
 
     public static function favicon()
     {
-        return "<link href=\"favicon.ico\" rel=\"icon\" type=\"image/x-icon\">";
+        return self::lineBreakPrefix()
+            . "<link href=\"favicon.ico\" rel=\"icon\" type=\"image/x-icon\">";
     }
 
-    public static function Css($file = "css/screen.css", $iTitle = "JV", $media = "all")
+    public static function Css($file = "screen.css", $iTitle = "", $media = "all")
     {
         // all or screen
         $title = (!CString::IsEmpty($iTitle)) ? " title=\"" . htmlspecialchars($iTitle, ENT_QUOTES, 'UTF-8') . "\"" : "";
-        return "<link rel=\"stylesheet\" type=\"text/css\" href=\"" . htmlspecialchars($file, ENT_QUOTES, 'UTF-8') . "\"" . $title . " media=\"" . htmlspecialchars($media, ENT_QUOTES, 'UTF-8') . "\" />";
+        return self::lineBreakPrefix()
+            . "<link rel=\"stylesheet\" type=\"text/css\" href=\"" . htmlspecialchars($file, ENT_QUOTES, 'UTF-8') . "\"" . $title . " media=\"" . htmlspecialchars($media, ENT_QUOTES, 'UTF-8') . "\" />";
     }
 
     public static function Href_selfurl($iVar)
@@ -131,7 +240,11 @@ class CHtml
 
     static function href($iVar)
     {
-        return 'href="' . CUtil::tap($iVar) . '"';
+        return 'href="' . htmlspecialchars(
+            CUtil::selfURL() . "/" . self::tap($iVar),
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        ) . '"';
     }
     public static function JsConfirm($Yes = "")
     {
@@ -219,7 +332,7 @@ class CHtml
                     $href = " href=\"" . $value . '"';
                     break;
                 case "path":
-                    $href = " " . self::Href($value);
+                    $href = " " . self::Href_cs($value);
                     break;
                 case "file":
                     $href = " href=\"file:" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '"';
@@ -252,11 +365,12 @@ class CHtml
 
     public static function marquee($str)
     {
-        $ret = "";
-        if ($str !== null) {
-            $ret = "<marquee behavior='scroll' direction='left'>" . htmlspecialchars($str, ENT_QUOTES, 'UTF-8') . "</marquee>";
+        if ($str === null || $str === '') {
+            return '';
         }
-        return $ret;
+        return self::lineBreakPrefix() . "<marquee behavior='scroll' direction='left'>"
+            . htmlspecialchars((string) $str, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . "</marquee>";
     }
 
     public static function _bold($str, $color = "")
@@ -319,32 +433,42 @@ class CHtml
 
     public static function filterByForm($iSelName, $iVarArray, $iSelVar, $meqs)
     {
-        $ret = "";
-        if ($iVarArray !== null) {
-            $ret = self::FrmBeg($meqs, "filterBy") . "Filter by:&nbsp;&nbsp;"
-                . self::dropDnList($iSelName, $iVarArray, $iSelVar)
-                . "<input type='submit' value='Go'>"
-                . self::FrmEnd($meqs);
+        if (empty($iVarArray)) {
+            return '';
         }
-        return $ret;
+
+        if (self::isActionUrl($iSelName) || !self::isActionUrl($meqs)) {
+            return self::filterByFormLegacy($iSelName, $iVarArray, $iSelVar, $meqs);
+        }
+
+        return self::lineBreakPrefix() . self::FrmBeg($meqs, "filterBy") . "Filter by:&nbsp;&nbsp;"
+            . self::dropDnList($iSelName, $iVarArray, $iSelVar)
+            . "<input type='submit' value='Go'>"
+            . self::FrmEnd($meqs);
+    }
+
+    private static function isActionUrl($value): bool
+    {
+        return is_string($value) && preg_match('~^(?:[/?]|[a-z][a-z0-9+.-]*://)~i', $value) === 1;
+    }
+
+    private static function filterByFormLegacy($action, $options, $selected, $selectName): string
+    {
+        return self::lineBreakPrefix() . '<FORM class="filterBy" method="post" action="'
+            . htmlspecialchars((string) $action, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '">Filter by:&nbsp;&nbsp;'
+            . self::select($options, $selected, $selectName)
+            . '<input type="submit" value="Go"></FORM>';
     }
 
     public static function jsGrid_Ajax_Sendemail($url, $reload = "")
     {
-        $reld = "";
-        if (strlen($reload) > 0) {
-            $reld = "location.reload();";
-        }
-        return sprintf("sendItem: function(item) { return $.ajax({ type: \"GET\",url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
+        return self::jsGridAjaxMutation('sendItem', 'GET', $url, $reload);
     }
 
     public static function jsGrid_Ajax_Clone($url, $reload = "")
     {
-        $reld = "";
-        if (strlen($reload) > 0) {
-            $reld = "location.reload();";
-        }
-        return sprintf("cloneItem: function(item) { return $.ajax({ type: \"GET\",url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
+        return self::jsGridAjaxMutation('cloneItem', 'GET', $url, $reload);
     }
 
     public static function jsGrid_Ajax_Read($url)
@@ -354,20 +478,30 @@ class CHtml
 
     public static function jsGrid_Ajax_Create($url, $reload = "")
     {
-        $reld = "";
-        if (strlen($reload) > 0) {
-            $reld = "location.reload();";
-        }
-        return sprintf("insertItem: function(item) { return $.ajax({ type: \"POST\",url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
+        return self::jsGridAjaxMutation('insertItem', 'POST', $url, $reload);
     }
 
     public static function jsGrid_Ajax_Update($url, $reload = "")
+    {
+        return self::jsGridAjaxMutation('updateItem', 'PUT', $url, $reload, true);
+    }
+
+    private static function jsGridAjaxMutation($operation, $method, $url, $reload, $spaceAfterType = false)
     {
         $reld = "";
         if (strlen($reload) > 0) {
             $reld = "location.reload();";
         }
-        return sprintf("updateItem: function(item) { return $.ajax({ type: \"PUT\", url: \"%s\", data: item, success: function(item) { %s } }); },", $url, $reld);
+
+        $space = $spaceAfterType ? " " : "";
+        return sprintf(
+            "%s: function(item) { return $.ajax({ type: \"%s\",%surl: \"%s\", data: item, success: function(item) { %s } }); },",
+            $operation,
+            $method,
+            $space,
+            $url,
+            $reld
+        );
     }
 
     public static function jsGrid_Ajax_Delete($url)
@@ -425,6 +559,19 @@ class CHtml
     public static function Submit($value)
     {
         return sprintf("<input type=\"submit\" name=\"submit\" value=\"%s\">", htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
+    }
+
+    public static function getLiMenu($menu)
+    {
+        if (!is_array($menu) || empty($menu)) {
+            return $menu;
+        }
+
+        $html = '';
+        foreach ($menu as $item) {
+            $html .= self::TagWithHtml('li', self::Alink($item));
+        }
+        return $html;
     }
 
     public static function Sanitize($html)
