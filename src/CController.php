@@ -17,9 +17,9 @@ class CController extends Ccore
 //    public $layoutsPath;
 
 
-    public function __construct()
+    public function __construct(?CContainer $container = null)
     {
-        parent::__construct();
+        parent::__construct(container: $container);
         $this->layout = $this->cfg->get('info.layout'); //set default template file
         $this->_appFolder = $this->cfg->get('folder.app');
         $this->_viewFolder = $this->cfg->get('folder.view');
@@ -336,7 +336,7 @@ class CController extends Ccore
         //        $shortName = strtolower(self::shortClass($iClassName)); // for comparison only
         $shortName = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
 
-        $ctl = new $iClassName;                           // use FQN to instantiate
+        $ctl = $this->makeClass($iClassName);
 
         if ($app == $shortName) {  // compare using short name
             if ((self::isMyAction($iClassName, $action) == true) and method_exists($ctl, $action)) {
@@ -381,7 +381,7 @@ class CController extends Ccore
     {
         $p404 = CConfig::$_cfg['routes']['page404'];
         $buff = "";
-        $ctl = CUtil::getClass($shortNameRte);
+        $ctl = $this->makeClass($shortNameRte);
         $vFile = $ctl->isLayout($ctl->layout);
         self::$_action = $p404;  // <-- temp critical fix        for the doBodyNoLayout() ignore the 'content' but don't need with the fix in doBodyNoLayout()
         $ctl->_view_data['content'] = $ctl->renderAppView($p404); // render content before the layout
@@ -402,7 +402,7 @@ class CController extends Ccore
         $p404 = CConfig::$_cfg['routes']['page404'];
         $task = $args['t'];
         $action = $args['a'];
-        $ctl = CUtil::getClass($shortNameRte);
+        $ctl = $this->makeClass($shortNameRte);
         $s404 = $this->stg->get('404s'); // ordered fallback view locations, e.g. ['action','router']
 
         pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
@@ -435,7 +435,7 @@ class CController extends Ccore
         $p404 = CConfig::$_cfg['routes']['page404'];
         $task = $args['t'];
         $action = $args['a'];
-        $ctl = CUtil::getClass($shortNameRte);
+        $ctl = $this->makeClass($shortNameRte);
         $s404 = $this->stg->get('404s'); // 404 locations ['action','router']
         pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
 
@@ -548,11 +548,11 @@ if ($notTnTg) {
         //        pln($args, 'doRouter-args-for-logout');
         //        print "cn: $iClassName sn: $shortName rt: " . print_r($routes, true) . ", args: " . print_r($args, true); // already got 404?? redirect?
         $task = $args['t'];
-        $tCtl = CUtil::getClass($task);
+        $tCtl = class_exists($task) ? $this->makeClass($task) : null;
 
         // safe current action/view to be render by doBodyContent()
         self::$_action = $action = $args['a'];
-        $rCtl = CUtil::getClass($iClassName);
+        $rCtl = $this->makeClass($iClassName);
 
         // WORK 08/23: tg (built fresh every request by setMenu(), gated by usrgroup, sourced from the
         // master task directory - not $selctrl) is the single source of truth for t=/a= access.

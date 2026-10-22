@@ -10,10 +10,10 @@ namespace MvcLite;
 class CModel extends CCore
 {
 
-    public function __construct($tname, $id = null)
+    public function __construct($tname, $id = null, ?CContainer $container = null)
     {
 
-        parent::__construct();
+        parent::__construct(container: $container);
         // get table name from controller
         $this->meTable = $tname;
     }
@@ -172,4 +172,3 @@ class CModel extends CCore
         return ($g !== '' && $g !== 'guest' && array_key_exists($g, $groups)) ? $g : $default;
     }
 }
-

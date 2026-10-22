@@ -80,22 +80,52 @@ class CContainer
 
     public function make(string $id): mixed
     {
+        if ($id === self::class) {
+            return $this;
+        }
+
         if (isset($this->bindings[$id])) {
             return ($this->bindings[$id])($this);
         }
 
         $shortName = substr(strrchr($id, '\\'), 1) ?: $id;
-
-        // debug — remove after testing
-        /*
-        pln($id, 'full name');
-        pln($shortName, 'short name');
-        pln(class_exists($id) ? 'yes' : 'no', 'class_exists full');
-        pln(class_exists($shortName) ? 'yes' : 'no', 'class_exists short');
-        pln(class_exists($id) ? 'yes' : 'no', 'class_exists full AFTER short trigger');
-    */
-        if (class_exists($id) || class_exists($shortName)) {
+        if (class_exists($id)) {
             return $this->autoWire($id);
+        }
+        if (class_exists($shortName)) {
+            return $this->autoWire($shortName);
+        }
+
+        throw new \RuntimeException("Container: no binding registered for '$id'.");
+    }
+
+    /**
+     * Build an unbound class while supplying constructor parameters by name.
+     *
+     * This is intended for runtime values such as a model's table name; all
+     * other class-typed parameters continue to be resolved by the container.
+     *
+     * @param array<string, mixed> $arguments
+     */
+    public function makeWith(string $id, array $arguments): mixed
+    {
+        if ($id === self::class) {
+            if ($arguments !== []) {
+                throw new \InvalidArgumentException('Container: runtime arguments cannot be passed to the container itself.');
+            }
+            return $this;
+        }
+
+        if (isset($this->bindings[$id])) {
+            throw new \InvalidArgumentException("Container: runtime arguments cannot be passed to the registered factory for '$id'.");
+        }
+
+        $shortName = substr(strrchr($id, '\\'), 1) ?: $id;
+        if (class_exists($id)) {
+            return $this->autoWire($id, $arguments);
+        }
+        if (class_exists($shortName)) {
+            return $this->autoWire($shortName, $arguments);
         }
 
         throw new \RuntimeException("Container: no binding registered for '$id'.");
@@ -121,27 +151,40 @@ class CContainer
         public function __construct(array $config) { }   // ← same problem
         public function __construct(mixed $anything) { } // ← too vague
     */
-    private function autoWire(string $className): mixed
+    private function autoWire(string $className, array $arguments = []): mixed
     {
         $ref = new \ReflectionClass($className);
         $constructor = $ref->getConstructor();
 
-        // no constructor or no params — just new it
         if (!$constructor || !$constructor->getParameters()) {
+            if ($arguments !== []) {
+                throw new \InvalidArgumentException("Container: class '$className' has no constructor parameters.");
+            }
             return new $className();
         }
 
-        // resolve each parameter by its type hint
         $deps = [];
+        $remainingArguments = $arguments;
         foreach ($constructor->getParameters() as $param) {
+            if (array_key_exists($param->getName(), $remainingArguments)) {
+                $deps[] = $remainingArguments[$param->getName()];
+                unset($remainingArguments[$param->getName()]);
+                continue;
+            }
+
             $type = $param->getType();
-            if ($type && !$type->isBuiltin()) {
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
                 $deps[] = $this->make($type->getName()); // recursive resolve
             } elseif ($param->isOptional()) {
                 $deps[] = $param->getDefaultValue();
             } else {
-                throw new \RuntimeException("Container: cannot auto-wire parameter '\${$param->getName()}' in $className.");
+                throw new \RuntimeException("Container: cannot auto-wire parameter '{$param->getName()}' in $className.");
             }
+        }
+
+        if ($remainingArguments !== []) {
+            $unknown = implode(', ', array_keys($remainingArguments));
+            throw new \InvalidArgumentException("Container: unknown constructor argument(s) for '$className': $unknown.");
         }
 
         return $ref->newInstanceArgs($deps);

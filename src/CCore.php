@@ -42,6 +42,7 @@ class CCore
     // DI Container — set once at application boot via CCore::setContainer()
     // -------------------------------------------------------------------------
     private static CContainer $container;
+    private ?CContainer $di = null;
 
     /**
      * Call this in your front controller / index.php before anything else.
@@ -58,6 +59,11 @@ class CCore
     public static function setContainer(CContainer $c): void
     {
         self::$container = $c;
+    }
+
+    public static function hasContainer(): bool
+    {
+        return isset(self::$container);
     }
 
     public static function getContainer(): CContainer
@@ -80,6 +86,7 @@ class CCore
     public $ut;
     public $h;
     public $db;
+    protected IRowQuery $rowQuery;
     public $meTable;
 
     protected $_view_data = [];
@@ -132,8 +139,11 @@ see public\index.php step 5-8
         mixed $auth = null,
         mixed $error = null,
         mixed $cfg = null,
-        mixed $stg = null
+        mixed $stg = null,
+        ?CContainer $container = null,
+        ?IRowQuery $rowQuery = null
     ) {
+        $this->di = $container ?? self::$container ?? null;
         CHtml::$_lineBreak = true;
 
         $this->db = $db ?? $this->resolve('db', fn() => new PdoLite());
@@ -144,6 +154,7 @@ see public\index.php step 5-8
 
         $this->cfg = $cfg ?? $this->resolve('cfg', fn() => new CConfig());
         $this->stg = $stg ?? $this->resolve('stg', fn() => new CSetting());
+        $this->rowQuery = $rowQuery ?? $this->resolve(IRowQuery::class, fn() => new CDbRowQuery());
 
 
         $this->get = $_GET;
@@ -168,14 +179,26 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
      */
     private function resolve(string $id, callable $default): mixed
     {
-        if (isset(self::$container)) {
-            try {
-                return self::$container->make($id);
-            } catch (\RuntimeException) {
-                // binding not registered yet — fall through to default
-            }
+        if ($this->di !== null && $this->di->has($id)) {
+            return $this->di->make($id);
         }
         return $default();
+    }
+
+    protected function makeClass(string $className, array $arguments = []): object
+    {
+        if ($this->di !== null) {
+            return $arguments === []
+                ? $this->di->make($className)
+                : $this->di->makeWith($className, $arguments);
+        }
+
+        if (!class_exists($className)) {
+            throw new \RuntimeException("Cannot instantiate unknown class '$className'.");
+        }
+
+        $reflection = new \ReflectionClass($className);
+        return $reflection->newInstanceArgs($arguments);
     }
 
     // -------------------------------------------------------------------------
@@ -274,7 +297,7 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
 
     protected function fetchRowsByQuery(string $query, array $params): array
     {
-        return CDbPdo::oleGetRowsParam($query, $params);
+        return $this->rowQuery->fetchAll($query, $params);
     }
 
     protected function quoteIdentifierPath(string $identifier): string
