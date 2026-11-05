@@ -1,5 +1,5 @@
 <?php
-namespace MvcLite;
+namespace MvcLite\Interfaces;
 
 interface IPdoConnectionFactory
 {

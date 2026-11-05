@@ -1,6 +1,8 @@
 <?php
 namespace MvcLite;
 
+use MvcLite\Interfaces\IPdoConnectionFactory;
+
 final class PdoConnectionFactory implements IPdoConnectionFactory
 {
     /** @var array<string, \PDO> */
