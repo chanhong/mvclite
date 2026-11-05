@@ -13,7 +13,10 @@
  */
 namespace MvcLite;
 use PdoLite\PdoLite;
+use MvcLite\Interfaces\IPdoConnectionFactory;
 use MvcLite\Interfaces\IRowQuery;
+use MvcLite\Interfaces\IRowCommand;
+use MvcLite\Interfaces\IRowSchema;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
@@ -88,6 +91,8 @@ class CCore
     public $h;
     public $db;
     protected IRowQuery $rowQuery;
+    protected IRowCommand $rowCommand;
+    protected IRowSchema $rowSchema;
     public $meTable;
 
     protected $_view_data = [];
@@ -143,7 +148,9 @@ see public\index.php step 5-8
         mixed $cfg = null,
         mixed $stg = null,
         ?CContainer $container = null,
-        ?IRowQuery $rowQuery = null
+        ?IRowQuery $rowQuery = null,
+        ?IRowCommand $rowCommand = null,
+        ?IRowSchema $rowSchema = null
     ) {
         $this->di = $container ?? self::$container ?? null;
         CHtml::$_lineBreak = true;
@@ -156,12 +163,24 @@ see public\index.php step 5-8
 
         $this->cfg = $cfg ?? $this->resolve('cfg', fn() => new CConfig());
         $this->stg = $stg ?? $this->resolve('stg', fn() => new CSetting());
-        $this->rowQuery = $rowQuery ?? $this->resolve(
-            IRowQuery::class,
-            fn() => new PdoRowQuery(new PdoConnectionFactory(
+        $connections = $this->resolve(
+            IPdoConnectionFactory::class,
+            fn() => new PdoConnectionFactory(
                 $this->cfg instanceof CConfig ? $this->cfg : new CConfig(),
                 $this->stg instanceof CSetting ? $this->stg : new CSetting()
-            ))
+            )
+        );
+        $this->rowQuery = $rowQuery ?? $this->resolve(
+            IRowQuery::class,
+            fn() => new PdoRowQuery($connections)
+        );
+        $this->rowCommand = $rowCommand ?? $this->resolve(
+            IRowCommand::class,
+            fn() => new PdoRowCommand($connections)
+        );
+        $this->rowSchema = $rowSchema ?? $this->resolve(
+            IRowSchema::class,
+            fn() => new PdoRowSchema($connections)
         );
 
 
@@ -310,6 +329,43 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
         return $this->rowQuery->fetchAll($query, $params);
     }
 
+    protected function executeCommand(string $query, array $params): int
+    {
+        return $this->rowCommand->execute($query, $params);
+    }
+
+    /**
+     * Keep only fields present in the selected table, preserving database casing.
+     *
+     * @param array<string, mixed> $fields
+     * @return array<string, mixed>
+     */
+    protected function filterFieldsBySchema(string $table, array $fields): array
+    {
+        $columns = [];
+        foreach (array_keys($this->getTableColumns($table)) as $column) {
+            $columns[strtolower($column)] = $column;
+        }
+
+        $filtered = [];
+        foreach ($fields as $field => $value) {
+            $column = $columns[strtolower((string) $field)] ?? null;
+            if ($column !== null) {
+                $filtered[$column] = $value;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function getTableColumns(string $table): array
+    {
+        return $this->rowSchema->columns($table);
+    }
+
     protected function quoteIdentifierPath(string $identifier): string
     {
         $parts = explode('.', $identifier);
@@ -322,15 +378,52 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
         return implode('.', array_map(static fn(string $part): string => '[' . $part . ']', $parts));
     }
 
-    public function dbIsAuthorized($validate, $where, $meTable)
+    /**
+     * Authenticate against a row selected by equality criteria.
+     *
+     * Criteria keys are column names and values are always bound as parameters;
+     * callers must not pass a raw SQL WHERE clause.
+     *
+     * @param array<string, scalar|null> $criteria
+     */
+    public function dbIsAuthorized($validate, array $criteria, string $meTable)
     {
-        if (!empty($validate) and !empty($where) and !empty($meTable)) {
-            $this->Auth->logout();
-            $userRow = $this->db->dbRow($meTable, ['where' => $where]);
-            if ($this->Auth->login($validate, $userRow) <> null) {
-                return $userRow;
+        if (empty($validate) || $criteria === [] || $meTable === '') {
+            return null;
+        }
+
+        $conditions = [];
+        $parameters = [];
+        foreach ($criteria as $column => $value) {
+            if (!is_string($column) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column)) {
+                throw new \InvalidArgumentException('Invalid authorization criteria column.');
+            }
+            if ($value !== null && !is_scalar($value)) {
+                throw new \InvalidArgumentException('Authorization criteria values must be scalar or null.');
+            }
+
+            $quotedColumn = $this->quoteIdentifierPath($column);
+            $conditions[] = $value === null ? "$quotedColumn IS NULL" : "$quotedColumn = ?";
+            if ($value !== null) {
+                $parameters[] = $value;
             }
         }
+
+        $table = $this->quoteIdentifierPath($meTable);
+        $this->Auth->logout();
+        $rows = $this->fetchRowsByQuery(
+            'SELECT * FROM ' . $table . ' WHERE ' . implode(' AND ', $conditions),
+            $parameters
+        );
+        $userRow = $rows[0] ?? null;
+        if ($userRow === null) {
+            return null;
+        }
+        if ($this->Auth->login($validate, $userRow) <> null) {
+            return $userRow;
+        }
+
+        return null;
     }
     public static function SetView(string $sView, string $sTask = "")
     {

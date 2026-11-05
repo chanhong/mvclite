@@ -4,6 +4,15 @@ namespace MvcLite;
 use MvcLite\Interfaces\IPdoConnectionFactory;
 use MvcLite\Interfaces\IRowSchema;
 
+/**
+ * Reads typed column metadata through the injected, database-specific PDO connection.
+ *
+ * This is separate from PdoLite::schema()/fieldsKey(), which provide column names
+ * through PdoLite's static/default connection but do not return column types. The
+ * AJAX data gateway needs those types to clean submitted values and must inspect
+ * the requested database, so this adapter uses the same connection factory as the
+ * gateway's query and command services.
+ */
 final class PdoRowSchema implements IRowSchema
 {
     public function __construct(private IPdoConnectionFactory $connections)

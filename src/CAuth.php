@@ -25,10 +25,10 @@ class CAuth
     public $user;
     public $needsRehash = false;
 
-    public function __construct()
+    public function __construct(?CUtil $ut = null)
     {
 
-        $this->ut = new CUtil;
+        $this->ut = $ut ?? new CUtil();
         $this->nid = null;
         $this->loggedIn = false;
         $this->expiryDate = time() + self::ONEMONTH;
@@ -40,7 +40,7 @@ class CAuth
     }
 
     // Get Singleton object
-    public static function getAuth($salt = "")
+    public static function getAuth($salt = "", ?CUtil $ut = null)
     {
 
         if (is_null(self::$me) || (!empty($salt) && self::$salt !== $salt)) {
@@ -49,8 +49,10 @@ class CAuth
                 $salt = md5(rand() . microtime());
             }
             self::$salt = $salt;
-            self::$me = new CAuth();
+            self::$me = new CAuth($ut);
             self::$me->init();
+        } elseif ($ut !== null) {
+            self::$me->ut = $ut;
         }
         return self::$me;
     }
@@ -306,34 +308,31 @@ class CAuth
 
     public function changeCurrentUsername($new_username)
     {
-
-        srand(time());
-        $this->user->nid = Auth::newNid();
-        $this->nid = $this->user->nid;
-        $this->user->username = $new_username;
-        $this->username = $this->user->username;
-        $this->user->update();
-        $this->profile = (array) $this->user;
-        $this->persistProfileToSession();
+        (new MUser('users'))->changeCurrentUsername($new_username);
+        $this->syncProfileFromSession();
     }
 
     public function impersonateUser($id_or_username)
     {
-        if (ctype_digit($id_or_username))
-            $u = new User($id_or_username);
-        else {
-            $u = new User();
-            $u->select($id_or_username, 'username');
+        if (!is_scalar($id_or_username) || (string) $id_or_username === '') {
+            return false;
         }
 
-        if (!$u->ok())
+        $identity = (string) $id_or_username;
+        $model = new MUser('users');
+        $profile = ctype_digit($identity)
+            ? $model->findById($identity)
+            : $model->findByUsername($identity);
+        if ($profile === null) {
             return false;
+        }
 
-        $this->id = $u->id;
-        $this->nid = $u->nid;
-        $this->username = $u->username;
-        $this->user = $u;
-        $this->profile = (array) $u;
+        $this->profile = $profile;
+        $this->user = (object) $profile;
+        $this->id = $profile['id'] ?? null;
+        $this->nid = $profile['nid'] ?? null;
+        $this->username = $profile['username'] ?? null;
+        $this->loggedIn = true;
         $this->persistProfileToSession();
 
         return true;
@@ -341,45 +340,32 @@ class CAuth
 
     public function changeCurrentPassword($new_password)
     {
-
-        srand(time());
-        $this->user->nid = self::newNid();
-        $this->user->password = self::hashedPassword($new_password);
-        $this->user->update();
-        $this->nid = $this->user->nid;
-        $this->profile = (array) $this->user;
-        $this->persistProfileToSession();
+        (new MUser('users'))->changeCurrentPassword($new_password);
+        $this->syncProfileFromSession();
     }
 
     public static function changeUsername($id_or_username, $new_username)
     {
-        if (ctype_digit($id_or_username))
-            $u = new User($id_or_username);
-        else {
-            $u = new User();
-            $u->select($id_or_username, 'username');
-        }
-
-        if ($u->ok()) {
-            $u->username = $new_username;
-            $u->update();
-        }
+        return MUser::changeUsername($id_or_username, $new_username);
     }
 
     public static function changePassword($id_or_username, $new_password)
     {
-        if (ctype_digit($id_or_username))
-            $u = new User($id_or_username);
-        else {
-            $u = new User();
-            $u->select($id_or_username, 'username');
+        return MUser::changePassword($id_or_username, $new_password);
+    }
+
+    private function syncProfileFromSession(): void
+    {
+        $profile = $_SESSION['uinfo'] ?? null;
+        if (!is_array($profile)) {
+            return;
         }
 
-        if ($u->ok()) {
-            $u->nid = self::newNid();
-            $u->password = self::hashedPassword($new_password);
-            $u->update();
-        }
+        $this->profile = $profile;
+        $this->user = (object) $profile;
+        $this->id = $profile['id'] ?? null;
+        $this->nid = $profile['nid'] ?? null;
+        $this->username = $profile['username'] ?? null;
     }
 
 
