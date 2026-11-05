@@ -1,6 +1,9 @@
 <?php
 namespace MvcLite;
 
+use MvcLite\Interfaces\IPdoConnectionFactory;
+use MvcLite\Interfaces\IRowCommand;
+
 final class PdoRowCommand implements IRowCommand
 {
     public function __construct(private IPdoConnectionFactory $connections)

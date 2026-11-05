@@ -13,6 +13,7 @@
  */
 namespace MvcLite;
 use PdoLite\PdoLite;
+use MvcLite\Interfaces\IRowQuery;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
@@ -97,6 +98,7 @@ class CCore
     protected $get;
     protected $post;
     public $_request;
+    protected $server;
     public $view_ext = 'php';
     public $layout;
     public $appsFolder;
@@ -156,7 +158,7 @@ see public\index.php step 5-8
         $this->stg = $stg ?? $this->resolve('stg', fn() => new CSetting());
         $this->rowQuery = $rowQuery ?? $this->resolve(
             IRowQuery::class,
-            fn() => new CDbRowQuery(new PdoConnectionFactory(
+            fn() => new PdoRowQuery(new PdoConnectionFactory(
                 $this->cfg instanceof CConfig ? $this->cfg : new CConfig(),
                 $this->stg instanceof CSetting ? $this->stg : new CSetting()
             ))
@@ -165,6 +167,8 @@ see public\index.php step 5-8
 
         $this->get = $_GET;
         $this->post = $_POST;
+        $this->_request = $_REQUEST;
+        $this->server = $_SERVER;
 
         if ($this->className === null) {
             $this->className = get_class($this);
@@ -174,7 +178,7 @@ see public\index.php step 5-8
 
 // NO        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
 
-$r = (string)($_REQUEST['r'] ?? '');
+$r = (string)($this->_request['r'] ?? '');
 $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';        
     }
 

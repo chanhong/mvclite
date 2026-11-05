@@ -1,7 +1,10 @@
 <?php
 namespace MvcLite;
 
-class CDbRowQuery implements IRowQuery
+use MvcLite\Interfaces\IPdoConnectionFactory;
+use MvcLite\Interfaces\IRowQuery;
+
+class PdoRowQuery implements IRowQuery
 {
     public function __construct(private IPdoConnectionFactory $connections)
     {
