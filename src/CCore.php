@@ -154,7 +154,13 @@ see public\index.php step 5-8
 
         $this->cfg = $cfg ?? $this->resolve('cfg', fn() => new CConfig());
         $this->stg = $stg ?? $this->resolve('stg', fn() => new CSetting());
-        $this->rowQuery = $rowQuery ?? $this->resolve(IRowQuery::class, fn() => new CDbRowQuery());
+        $this->rowQuery = $rowQuery ?? $this->resolve(
+            IRowQuery::class,
+            fn() => new CDbRowQuery(new PdoConnectionFactory(
+                $this->cfg instanceof CConfig ? $this->cfg : new CConfig(),
+                $this->stg instanceof CSetting ? $this->stg : new CSetting()
+            ))
+        );
 
 
         $this->get = $_GET;
