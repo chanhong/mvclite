@@ -108,24 +108,23 @@ session_destroy();
 
   public static function add2SessVar($iVar, $msg)
   {
-      self::ensureSessionStarted();
-      if (empty($_SESSION[$iVar])) {
-          $_SESSION[$iVar] = $msg;
+      $session = CCore::getSessionStore();
+      $current = $session->get((string) $iVar);
+      if (empty($current)) {
+          $session->set((string) $iVar, $msg);
       } else {
-          $_SESSION[$iVar] .= " $msg";
+          $session->set((string) $iVar, $current . " " . $msg);
       }
   }
 
   public static function getSessTxt(string $fb = "feedback")
   {
-      self::ensureSessionStarted();
-      return $_SESSION[$fb] ?? '';
+      return CCore::getSessionStore()->get($fb, '');
   }
 
   public static function getSessNv(string $key): array
   {
-      self::ensureSessionStarted();
-      $val = $_SESSION[$key] ?? [];
+      $val = CCore::getSessionStore()->get($key, []);
       return is_array($val) ? $val : [];
   }
 
@@ -269,4 +268,3 @@ session_destroy();
 
 // Static initialization equivalent to: public static HttpContext _ctx_s = HttpContext.Current;
 CSession::$_ctx_s = HttpContext::init();
-

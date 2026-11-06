@@ -89,11 +89,9 @@ class CContainer
         }
 
         $shortName = substr(strrchr($id, '\\'), 1) ?: $id;
-        if (class_exists($id)) {
-            return $this->autoWire($id);
-        }
-        if (class_exists($shortName)) {
-            return $this->autoWire($shortName);
+        $resolvedId = $this->resolveClassName($id, $shortName);
+        if ($resolvedId !== null) {
+            return $this->autoWire($resolvedId);
         }
 
         throw new \RuntimeException("Container: no binding registered for '$id'.");
@@ -121,11 +119,9 @@ class CContainer
         }
 
         $shortName = substr(strrchr($id, '\\'), 1) ?: $id;
-        if (class_exists($id)) {
-            return $this->autoWire($id, $arguments);
-        }
-        if (class_exists($shortName)) {
-            return $this->autoWire($shortName, $arguments);
+        $resolvedId = $this->resolveClassName($id, $shortName);
+        if ($resolvedId !== null) {
+            return $this->autoWire($resolvedId, $arguments);
         }
 
         throw new \RuntimeException("Container: no binding registered for '$id'.");
@@ -172,14 +168,8 @@ class CContainer
                 continue;
             }
 
-            $type = $param->getType();
-            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                $deps[] = $this->make($type->getName()); // recursive resolve
-            } elseif ($param->isOptional()) {
-                $deps[] = $param->getDefaultValue();
-            } else {
-                throw new \RuntimeException("Container: cannot auto-wire parameter '{$param->getName()}' in $className.");
-            }
+            $resolved = $this->resolveParameter($param, $className);
+            $deps[] = $resolved;
         }
 
         if ($remainingArguments !== []) {
@@ -188,6 +178,84 @@ class CContainer
         }
 
         return $ref->newInstanceArgs($deps);
+    }
+
+    private function resolveParameter(\ReflectionParameter $param, string $className): mixed
+    {
+        $type = $param->getType();
+        if ($type instanceof \ReflectionNamedType) {
+            return $this->resolveNamedType($param, $type, $className);
+        }
+
+        if ($type instanceof \ReflectionUnionType) {
+            foreach ($type->getTypes() as $candidate) {
+                if ($candidate instanceof \ReflectionNamedType && !$candidate->isBuiltin()) {
+                    return $this->make($this->normalizeTypeName($className, $candidate->getName()));
+                }
+            }
+            if ($param->isOptional()) {
+                return $param->getDefaultValue();
+            }
+            throw new \RuntimeException("Container: cannot auto-wire parameter '{$param->getName()}' in $className.");
+        }
+
+        if ($type instanceof \ReflectionIntersectionType) {
+            if ($param->isOptional()) {
+                return $param->getDefaultValue();
+            }
+            throw new \RuntimeException("Container: cannot auto-wire intersection parameter '{$param->getName()}' in $className.");
+        }
+
+        if ($param->isOptional()) {
+            return $param->getDefaultValue();
+        }
+
+        throw new \RuntimeException("Container: cannot auto-wire parameter '{$param->getName()}' in $className.");
+    }
+
+    private function resolveNamedType(\ReflectionParameter $param, \ReflectionNamedType $type, string $className): mixed
+    {
+        $typeName = $this->normalizeTypeName($className, $type->getName());
+        if (!$type->isBuiltin()) {
+            return $this->make($typeName);
+        }
+
+        if ($param->isOptional()) {
+            return $param->getDefaultValue();
+        }
+
+        throw new \RuntimeException("Container: cannot auto-wire parameter '{$param->getName()}' in $className.");
+    }
+
+    private function normalizeTypeName(string $className, string $typeName): string
+    {
+        if ($typeName === 'self') {
+            return $className;
+        }
+
+        if ($typeName === 'parent') {
+            $parent = get_parent_class($className);
+            return $parent ?: $typeName;
+        }
+
+        return $typeName;
+    }
+
+    private function resolveClassName(string $id, string $shortName): ?string
+    {
+        if (class_exists($id)) {
+            $class = new \ReflectionClass($id);
+            if (!$class->isInternal()) {
+                return $class->getName();
+            }
+        }
+        if (class_exists($shortName)) {
+            $class = new \ReflectionClass($shortName);
+            if (!$class->isInternal()) {
+                return $class->getName();
+            }
+        }
+        return null;
     }
 
     /**

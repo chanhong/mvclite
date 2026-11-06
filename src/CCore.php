@@ -17,6 +17,7 @@ use MvcLite\Interfaces\IPdoConnectionFactory;
 use MvcLite\Interfaces\IRowQuery;
 use MvcLite\Interfaces\IRowCommand;
 use MvcLite\Interfaces\IRowSchema;
+use MvcLite\Interfaces\ISessionStore;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
@@ -78,6 +79,15 @@ class CCore
         return self::$container;
     }
 
+    public static function getSessionStore(): ISessionStore
+    {
+        if (self::hasContainer() && self::$container->has(ISessionStore::class)) {
+            return self::$container->make(ISessionStore::class);
+        }
+
+        return new PhpSessionStore();
+    }
+
     // -------------------------------------------------------------------------
     // Instance properties — unchanged
     // -------------------------------------------------------------------------
@@ -93,6 +103,7 @@ class CCore
     protected IRowQuery $rowQuery;
     protected IRowCommand $rowCommand;
     protected IRowSchema $rowSchema;
+    protected ?ISessionStore $session = null;
     public $meTable;
 
     protected $_view_data = [];
@@ -150,7 +161,8 @@ see public\index.php step 5-8
         ?CContainer $container = null,
         ?IRowQuery $rowQuery = null,
         ?IRowCommand $rowCommand = null,
-        ?IRowSchema $rowSchema = null
+        ?IRowSchema $rowSchema = null,
+        ?ISessionStore $session = null
     ) {
         $this->di = $container ?? self::$container ?? null;
         CHtml::$_lineBreak = true;
@@ -182,6 +194,10 @@ see public\index.php step 5-8
             IRowSchema::class,
             fn() => new PdoRowSchema($connections)
         );
+        $this->session = $session ?? $this->resolve(
+            ISessionStore::class,
+            fn() => new PhpSessionStore()
+        );
 
 
         $this->get = $_GET;
@@ -212,6 +228,11 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
             return $this->di->make($id);
         }
         return $default();
+    }
+
+    protected function sessionStore(): ISessionStore
+    {
+        return $this->session ??= new PhpSessionStore();
     }
 
     protected function makeClass(string $className, array $arguments = []): object
@@ -267,17 +288,20 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
 
     public function csrfToken(): string
     {
-        if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || strlen($_SESSION['_csrf_token']) !== 64) {
-            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        $session = $this->sessionStore();
+        $token = $session->get('_csrf_token');
+        if (!is_string($token) || strlen($token) !== 64) {
+            $token = bin2hex(random_bytes(32));
+            $session->set('_csrf_token', $token);
         }
 
-        return $_SESSION['_csrf_token'];
+        return $token;
     }
 
     public function hasValidCsrfPost(): bool
     {
         $submittedToken = $_POST['_csrf_token'] ?? null;
-        $sessionToken = $_SESSION['_csrf_token'] ?? null;
+        $sessionToken = $this->sessionStore()->get('_csrf_token');
 
         return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
             && is_string($submittedToken)
@@ -529,12 +553,11 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
     public static function ClearUser()
     {
         // Do NOT use session_destroy() or session_unset() if you still need debug messages
-        unset($_SESSION['usrname']);
-        unset($_SESSION['usrgroup'], $_SESSION['usrentity']);
-        unset($_SESSION['uinfo']);
+        $session = self::getSessionStore();
+        foreach (['usrname', 'usrgroup', 'usrentity', 'uinfo', 'loggedin', 'uinfotxt'] as $key) {
+            $session->remove($key);
+        }
         // unset($_SESSION['_uprf']);   // commented in original
-        unset($_SESSION['loggedin']);
-        unset($_SESSION['uinfotxt']);
 
         CCore::$_cfg['logoff'] = '';   // reset
         CCore::$_uprf = null;
@@ -542,6 +565,7 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
     }
     public static function CLogin($frm)
     {
+        $session = self::getSessionStore();
         $ret = false;
         $msg = "Please login!";
         $app = "";
@@ -602,9 +626,9 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                 $loggedin = CSecs::setUsrInfoText();
                 $msg = "You are login as " . $loggedin; // this set the variable for a successful login
                 $_usr['level'] = $_usr['usrgroup'];
-                $_SESSION["uinfo"] = $_usr; // get litype into session
-                $_SESSION['uinfo']['level'] = $_usr['usrgroup'];   // patch for PHP users login access       
-                $_SESSION["loggedin"] = $loggedin; // also set loggedin in session for consistency and future checks
+                $_usr['level'] = $_usr['usrgroup'];   // patch for PHP users login access
+                $session->set('uinfo', $_usr);
+                $session->set('loggedin', $loggedin); // also set loggedin in session for consistency and future checks
                 static::$_usr["loggedin"] = $loggedin; // set loggedin for the current user session
                 CMsg::_dmsg($_usr, $msg);
                 CUtil::Add2SessVar("feedback", $msg);

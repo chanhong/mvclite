@@ -623,7 +623,7 @@ class PdfGenerator {
 
         if (strlen($statusRet) > 0) {
             $ret = CUtil::sb2s($statusRet, $separator);
-            $_SESSION["feedback"] = $ret;
+            CCore::getSessionStore()->set("feedback", $ret);
         }
         return $ret;
     }
@@ -1082,5 +1082,4 @@ print_r($nonExistentFiles); // Should be empty array
 */
 
 }
-
 
