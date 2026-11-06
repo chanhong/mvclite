@@ -274,7 +274,19 @@ class CMenu
     {
         return empty($taskGroup)
             || $taskGroup == 'guest'
-            || CSecs::IsUsrGrpComp($_SESSION['uinfo']['usrgroup'] ?? 'guest', $taskGroup, '>=');
+            || CSecs::IsUsrGrpComp(
+                self::currentUserGroup(),
+                $taskGroup,
+                '>='
+            );
+    }
+
+    private static function currentUserGroup(): string
+    {
+        $uinfo = CCore::getSessionStore()->get('uinfo', []);
+        return is_array($uinfo) && is_string($uinfo['usrgroup'] ?? null)
+            ? $uinfo['usrgroup']
+            : 'guest';
     }
 
     // new menus with the new structure to be tested
@@ -521,7 +533,7 @@ class CMenu
                 if (
                     empty($taskGroup) || $taskGroup == 'guest'
                     || CSecs::IsUsrGrpComp(
-                        $_SESSION['uinfo']['usrgroup'] ?? 'guest',
+                        self::currentUserGroup(),
                         $taskGroup,
                         '>='
                     )
@@ -551,11 +563,16 @@ class CMenu
         if (is_dir($viewPath) && substr($selectedView, 0, 1) !== '_') {
             $login = CSetting::get('login');
             $viewExtension = CSetting::get('viewext') ?: '.php';
-            if (empty($_SESSION['uinfo']['usrgroup'])) {
-                $viewFile = rtrim($viewPath, DIRECTORY_SEPARATOR)
-                    . DIRECTORY_SEPARATOR . $login . $viewExtension;
-                if (file_exists($viewFile)) {
-                    $loginOrLogout['Login'] = CUtil::tap('/' . $selectedView . '/' . $login);
+            if (self::currentUserGroup() === 'guest') {
+                $loginRoute = CSetting::get('loginRoutes.' . $selectedView);
+                if (is_string($loginRoute) && $loginRoute !== '') {
+                    $loginOrLogout['Login'] = CUtil::tap($loginRoute);
+                } else {
+                    $viewFile = rtrim($viewPath, DIRECTORY_SEPARATOR)
+                        . DIRECTORY_SEPARATOR . $login . $viewExtension;
+                    if (file_exists($viewFile)) {
+                        $loginOrLogout['Login'] = CUtil::tap('/' . $selectedView . '/' . $login);
+                    }
                 }
             } else {
                 $loginOrLogout['Logout'] = CUtil::tap(CSetting::get('urllogout'));

@@ -2,6 +2,8 @@
 
 namespace MvcLite;
 
+use MvcLite\Interfaces\ISessionStore;
+
 class CAuth
 {
 
@@ -18,6 +20,7 @@ class CAuth
     // array('nid','username'...)
     public $expiryDate;
     public $ut;
+    private ISessionStore $session;
 
     // to be removed    
     public $id;
@@ -25,10 +28,11 @@ class CAuth
     public $user;
     public $needsRehash = false;
 
-    public function __construct(?CUtil $ut = null)
+    public function __construct(?CUtil $ut = null, ?ISessionStore $session = null)
     {
 
         $this->ut = $ut ?? new CUtil();
+        $this->session = $session ?? new PhpSessionStore();
         $this->nid = null;
         $this->loggedIn = false;
         $this->expiryDate = time() + self::ONEMONTH;
@@ -40,7 +44,7 @@ class CAuth
     }
 
     // Get Singleton object
-    public static function getAuth($salt = "", ?CUtil $ut = null)
+    public static function getAuth($salt = "", ?CUtil $ut = null, ?ISessionStore $session = null)
     {
 
         if (is_null(self::$me) || (!empty($salt) && self::$salt !== $salt)) {
@@ -49,10 +53,13 @@ class CAuth
                 $salt = md5(rand() . microtime());
             }
             self::$salt = $salt;
-            self::$me = new CAuth($ut);
+            self::$me = new CAuth($ut, $session);
             self::$me->init();
         } elseif ($ut !== null) {
             self::$me->ut = $ut;
+        }
+        if ($session !== null) {
+            self::$me->session = $session;
         }
         return self::$me;
     }
@@ -60,7 +67,7 @@ class CAuth
     public function init()
     {
         $this->clearCookies();
-        $profile = $_SESSION['uinfo'] ?? null;
+        $profile = $this->session->get('uinfo');
         $username = is_array($profile) ? ($profile['username'] ?? $profile['usrname'] ?? null) : null;
         if (!is_string($username) || $username === '') {
             $this->loggedIn = false;
@@ -177,9 +184,9 @@ class CAuth
     {
 
         $this->loggedIn = false;
-        unset($_SESSION['uinfo']);
-        unset($_SESSION['loggedin']);
-        unset($_SESSION['usrname'], $_SESSION['usrgroup'], $_SESSION['usrentity'], $_SESSION['uinfotxt']);
+        foreach (['uinfo', 'loggedin', 'usrname', 'usrgroup', 'usrentity', 'uinfotxt'] as $key) {
+            $this->session->remove($key);
+        }
         $this->profile = null;
         $this->user = null;
         $this->loggedIn = false;
@@ -239,8 +246,8 @@ class CAuth
             return;
         }
 
-        $_SESSION['uinfo'] = $this->profile;
-        $_SESSION['loggedin'] = $this->profile['username'];
+        $this->session->set('uinfo', $this->profile);
+        $this->session->set('loggedin', $this->profile['username']);
     }
 
     private function clearCookies()
@@ -356,7 +363,7 @@ class CAuth
 
     private function syncProfileFromSession(): void
     {
-        $profile = $_SESSION['uinfo'] ?? null;
+        $profile = $this->session->get('uinfo');
         if (!is_array($profile)) {
             return;
         }
