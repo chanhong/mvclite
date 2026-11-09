@@ -49,8 +49,7 @@ class CAuth
 
         if (is_null(self::$me) || (!empty($salt) && self::$salt !== $salt)) {
             if (empty($salt)) {
-                srand(time());
-                $salt = md5(rand() . microtime());
+                $salt = bin2hex(random_bytes(32));
             }
             self::$salt = $salt;
             self::$me = new CAuth($ut, $session);
@@ -203,8 +202,11 @@ class CAuth
 
     public static function generateStrongPassword($length = 9, $add_dashes = false, $available_sets = 'luds')
     {
+        if (!is_int($length) || $length < 1) {
+            throw new \InvalidArgumentException('Password length must be a positive integer.');
+        }
 
-        $sets = array();
+        $sets = [];
         if (strpos($available_sets, 'l') !== false)
             $sets[] = 'abcdefghjkmnpqrstuvwxyz';
         if (strpos($available_sets, 'u') !== false)
@@ -214,18 +216,27 @@ class CAuth
         if (strpos($available_sets, 's') !== false)
             $sets[] = '!@#$%&*?';
 
+        if ($sets === [] || $length < count($sets)) {
+            throw new \InvalidArgumentException('Password length must cover every requested character set.');
+        }
+
         $all = '';
-        $password = '';
+        $characters = [];
         foreach ($sets as $set) {
-            $password .= $set[array_rand(str_split($set))];
+            $characters[] = $set[random_int(0, strlen($set) - 1)];
             $all .= $set;
         }
 
         $all = str_split($all);
-        for ($i = 0; $i < $length - count($sets); $i++)
-            $password .= $all[array_rand($all)];
+        while (count($characters) < $length) {
+            $characters[] = $all[random_int(0, count($all) - 1)];
+        }
 
-        $password = str_shuffle($password);
+        for ($i = count($characters) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$characters[$i], $characters[$j]] = [$characters[$j], $characters[$i]];
+        }
+        $password = implode('', $characters);
 
         if (!$add_dashes)
             return $password;
@@ -290,9 +301,7 @@ class CAuth
 
     public static function newNid()
     {
-
-        srand(time());
-        return md5(rand() . microtime());
+        return bin2hex(random_bytes(16));
     }
 
     // from custom, check it out

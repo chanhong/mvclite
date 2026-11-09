@@ -110,15 +110,17 @@ class CController extends Ccore
 
     public function sendToLoginPage($rUrl = "")
     {
+        $this->redirect2Url($this->loginRedirectUrl((string) $rUrl));
+    }
 
+    protected function loginRedirectUrl(string $rUrl): string
+    {
         $url = self::$loginUrl;
-        //        $full_url = urlencode($rUrl); // must do this or missing & qs
-        $full_url = $rUrl; // must do this or missing & qs
-        if (strpos($full_url, 'logout') === false) {
-            $url .= '&r=' . $full_url;
+        if (strpos($rUrl, 'logout') === false) {
+            $url .= '&r=' . rawurlencode($rUrl);
         }
 
-        $this->redirect2Url($url);
+        return $url;
     }
 
     public static function xqsValue()

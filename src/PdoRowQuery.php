@@ -12,8 +12,12 @@ class PdoRowQuery implements IRowQuery
 
     public function fetchAll(string $query, array $parameters = [], string $database = ''): array
     {
-        $statement = $this->connections->connect($database)->prepare($query);
-        $statement->execute($parameters);
+        try {
+            $statement = $this->connections->connect($database)->prepare($query);
+            $statement->execute($parameters);
+        } catch (\PDOException $exception) {
+            throw CDbPdo::queryException($exception, $query);
+        }
 
         $rows = [];
         foreach ($statement->fetchAll(\PDO::FETCH_ASSOC) as $row) {

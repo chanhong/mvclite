@@ -40,8 +40,9 @@ class CDbPdo extends CDb
             $connection = \PdoLite\PdoLite::dbConnect($connectionString, $username ?? "", $password ?? "", $options);
             return $connection;
         } catch (\PDOException $e) {
-            CUtil::add2SessVar("alert", "Connection FAILED: " . $e->getMessage());
-            throw $e;
+            error_log('Database connection failed: ' . $e->getMessage());
+            CUtil::add2SessVar("alert", "Connection FAILED. Please contact support.");
+            throw new \PDOException('Database connection failed.');
         }
     }
 
@@ -164,16 +165,21 @@ class CDbPdo extends CDb
 
     public static function oleRdrParam(\PDO $conn, string $strQry, ?array $nvValue = null): \PDOStatement
     {
-        $stmt = self::oleCmdParam($conn, $strQry, $nvValue);
         try {
+            $stmt = self::oleCmdParam($conn, $strQry, $nvValue);
             $stmt->execute();
         } catch (\PDOException $e) {
-            // DIAGNOSTIC: show which SQL failed (ODBC only says "out-of-range value").
-            $ex = new \PDOException($e->getMessage() . ' || SQL: ' . $strQry);
-            $ex->errorInfo = $e->errorInfo;
-            throw $ex;
+            throw self::queryException($e, $strQry);
         }
         return $stmt;
+    }
+
+    public static function queryException(\PDOException $exception, string $query): \PDOException
+    {
+        error_log('Database query failed: ' . $exception->getMessage() . ' || SQL: ' . $query);
+        $sanitized = new \PDOException('Database query failed.', (int) $exception->getCode());
+        $sanitized->errorInfo = $exception->errorInfo;
+        return $sanitized;
     }
 
     public static function oleCmdExecParam(\PDO $conn, string $strQry, ?array $nvValue = null): int
