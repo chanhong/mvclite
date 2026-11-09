@@ -18,6 +18,7 @@ use MvcLite\Interfaces\IRowQuery;
 use MvcLite\Interfaces\IRowCommand;
 use MvcLite\Interfaces\IRowSchema;
 use MvcLite\Interfaces\ISessionStore;
+use MvcLite\Interfaces\IPasswordRehasher;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
@@ -593,7 +594,8 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                 //          && $usrname == $_usr["usrname"] // why?
             ) {
                 if ($loginType == "web" && CString::IsEmpty($pw) == false) {
-                    $hash = CSecs::GetMd5Hash($pw);
+                    $storedPassword = (string) ($_usr["usrpw"] ?? '');
+                    $isLegacyMd5 = preg_match('/^[a-f0-9]{32}$/iD', $storedPassword) === 1;
                     /*
                     CMsg::_dprt($hash, "hash");
                     CMsg::_dprt($_usr["usrpw"], "usrhash");
@@ -601,7 +603,9 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                     CMsg::_dmsg($hash, "hash");
                     CMsg::_dmsg($_usr["usrpw"], "usrpw");
          */
-                    if ($hash == $_usr["usrpw"]) {
+                    if ($isLegacyMd5
+                        ? hash_equals(strtolower($storedPassword), CSecs::GetMd5Hash($pw))
+                        : ($storedPassword !== '' && password_verify($pw, $storedPassword))) {
                         $_usr["litype"] = $loginType;
                         //              CMsg::_dmsg($_usr, "login-web");
                         $ret = true;
@@ -610,7 +614,7 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                         CMsg::_dmsg($_usr, "login-web-hash failed");
                         CUtil::Add2SessVar("alert", "Failed password validation!");
                     }
-                } else if ($loginType == "win" && CString::IsEmpty(pw)) {
+                } else if ($loginType == "win" && CString::IsEmpty($pw)) {
                     if ($usrname == CSecs::winUser()) {
                         $_usr["litype"] = $loginType;
                         //              CMsg::_dmsg($_usr, "login-win");
@@ -620,6 +624,17 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
             }
 
             if ($ret == true) {
+                if ($app === 'jv'
+                    && $loginType === 'web'
+                    && $isLegacyMd5
+                    && self::hasContainer()
+                    && self::getContainer()->has(IPasswordRehasher::class)) {
+                    self::getContainer()->make(IPasswordRehasher::class)->rehashLegacyPassword(
+                        (string) $usrname,
+                        (string) $pw,
+                        'dbejv'
+                    );
+                }
                 if (session_status() === PHP_SESSION_ACTIVE) {
                     session_regenerate_id(true);
                 }

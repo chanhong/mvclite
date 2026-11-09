@@ -593,8 +593,8 @@ class PdfGenerator {
         $ret = "";
         $statusRet = "";
 
-        if (!isset($_SESSION))
-            session_start();
+        if (session_status() === PHP_SESSION_NONE && !isset($_SESSION))
+            CSession::startSecureSession();
 
         // PHP $_FILES structure is different for multiple files
         // Normalizing $_FILES to iterate
@@ -1082,4 +1082,3 @@ print_r($nonExistentFiles); // Should be empty array
 */
 
 }
-

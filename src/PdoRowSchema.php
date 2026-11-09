@@ -25,10 +25,13 @@ final class PdoRowSchema implements IRowSchema
             throw new \InvalidArgumentException('Invalid database table name.');
         }
 
-        $statement = $this->connections->connect($database)->prepare(
-            'SELECT * FROM [' . $table . '] WHERE 1 = 0'
-        );
-        $statement->execute();
+        $query = 'SELECT * FROM [' . $table . '] WHERE 1 = 0';
+        try {
+            $statement = $this->connections->connect($database)->prepare($query);
+            $statement->execute();
+        } catch (\PDOException $exception) {
+            throw CDbPdo::queryException($exception, $query);
+        }
 
         $columns = [];
         for ($index = 0; $index < $statement->columnCount(); $index++) {

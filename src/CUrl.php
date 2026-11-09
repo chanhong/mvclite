@@ -62,27 +62,30 @@ class CUrl
 
     public static function qsValue()
     {
-        $arr = array();
-        $qs = $_SERVER['QUERY_STRING'] ?? '';
-        if ($qs <> null && strlen($qs) > 0) {
-            $retUrl = "";
-            $retArr = explode("&r=", $qs, 2);
-            if (count($retArr) > 1) {
-                $retUrl = array_pop($retArr);
-                $qs = array_pop($retArr);
-            }
-            $taskArr = explode("t=", $qs);
-            if (count($taskArr) > 1) {
-                parse_str($qs, $arr);
-                $arr = array_map('strtolower', $arr);
-                $arr = array_map('trim', $arr);
-            } else {
-                $arr = array('t' => $qs);
-                if (!empty($retUrl))
-                    $arr['r'] = $retUrl;
-            }
+        $queryString = (string) ($_SERVER['QUERY_STRING'] ?? '');
+        if ($queryString === '') {
+            return [];
         }
-        return $arr;
+
+        $routeKeys = self::routeKeys();
+
+        parse_str($queryString, $values);
+        $taskKey = $routeKeys[0];
+        if (!array_key_exists($taskKey, $values)) {
+            return [$taskKey => $queryString];
+        }
+
+        $normalizedRouteKeys = array_slice($routeKeys, 0, 2);
+        foreach ($values as $key => $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $value = trim($value);
+            $values[$key] = in_array($key, $normalizedRouteKeys, true) ? strtolower($value) : $value;
+        }
+
+        return $values;
     }
 
     public static function qs2nv($url = "")
@@ -146,8 +149,7 @@ class CUrl
         $kArray = [];
         $vArray = (isset($iPath) && substr($iPath, 0, 1) == '/') ? explode("/", substr($iPath, 1, strlen($iPath))) : null;
         $vArray = array_pad($vArray, count($kArray), '');
-        $aKey = isset(CCore::$_cfg["takey"]) ? CCore::$_cfg["takey"] : 't,a,p1,p2,p3,p4,p5';
-        $kArray = explode(",", $aKey);
+        $kArray = self::routeKeys();
 
         $qsa = [];
         $i = 0;
@@ -158,6 +160,27 @@ class CUrl
             }
         }
         return $qsa;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function routeKeys(): array
+    {
+        $configuredKeys = CSetting::get('takey');
+        if (!is_string($configuredKeys) || trim($configuredKeys) === '') {
+            $configuredKeys = (string) (CCore::$_cfg['takey'] ?? 't,a,p1,p2,p3,p4,p5');
+        }
+
+        $routeKeys = array_values(array_filter(
+            array_map('trim', explode(',', $configuredKeys)),
+            static fn(string $key): bool => $key !== ''
+        ));
+        if ($routeKeys === []) {
+            throw new \RuntimeException('The route key configuration must contain at least one key.');
+        }
+
+        return $routeKeys;
     }
 
     public static function nv2kps($source, $delim = "&")

@@ -214,29 +214,6 @@ class CUtil
         return CUrl::selfURL();
     }
 
-    function array2InsStr($iArray)
-    {
-
-        $value = '"' . implode('", "', array_values($iArray)) . '"'; // must use this in case quote in the name
-        $name = implode(", ", array_keys($iArray));
-        // return (jvid, title, maker, explanation, acctmo, prep_date, phone ) VALUES ("1","Title","Maker","Explanation","15","2/11/2011","87878")        
-        return "($name) VALUES ($value)";
-    }
-
-    function array2UptStr($iArray, $checkNumArray = array())
-    {
-
-        $str = "";
-        foreach ($iArray as $key => $val) {
-            if (isset($checkNumArray[$key]) and $key == $checkNumArray[$key] and empty($val)) {
-                $val = "0"; // set to "0" only in the $checkNumArray and is empty
-            }
-            $str .= $key . ' ="' . $val . '", ';
-        }
-        // return maker= 'Name', acctmo= '15', prep_date= '11/2/2011', phone= '87878', explanation= 'Some Text', title='Some Title'
-        return substr($str, 0, strlen($str) - 2); // take out comma and space
-    }
-
     function array2Str($iArray)
     {
 

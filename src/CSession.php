@@ -21,7 +21,7 @@ class HttpContext
         // the superglobal array for tests or request bootstrap; that would
         // replace the current session data with an empty one.
         if (session_status() === PHP_SESSION_NONE && empty($_SESSION)) {
-            @session_start();
+            CSession::startSecureSession();
         }
         $this->Session = &$_SESSION;
     }
@@ -73,8 +73,27 @@ final class CSession
   private static function ensureSessionStarted(): void
   {
       if (session_status() === PHP_SESSION_NONE && empty($_SESSION)) {
-          @session_start();
+          self::startSecureSession();
       }
+  }
+
+  public static function startSecureSession(): void
+  {
+      if (session_status() !== PHP_SESSION_NONE) {
+          return;
+      }
+
+      ini_set('session.use_strict_mode', '1');
+      $cookie = session_get_cookie_params();
+      session_set_cookie_params([
+          'lifetime' => $cookie['lifetime'],
+          'path' => $cookie['path'],
+          'domain' => $cookie['domain'],
+          'secure' => !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off',
+          'httponly' => true,
+          'samesite' => 'Lax',
+      ]);
+      session_start();
   }
 
   public static function clearSession()

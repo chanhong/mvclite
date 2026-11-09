@@ -12,8 +12,12 @@ final class PdoRowCommand implements IRowCommand
 
     public function execute(string $query, array $parameters = [], string $database = ''): int
     {
-        $statement = $this->connections->connect($database)->prepare($query);
-        $statement->execute($parameters);
+        try {
+            $statement = $this->connections->connect($database)->prepare($query);
+            $statement->execute($parameters);
+        } catch (\PDOException $exception) {
+            throw CDbPdo::queryException($exception, $query);
+        }
 
         return $statement->rowCount();
     }
