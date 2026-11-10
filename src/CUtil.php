@@ -130,37 +130,45 @@ class CUtil
         $screenFullLines = 20; // Reset after ~20 lines (typical screen height)
         $maxScreenSize = 25600; // ~25KB per screen for on-screen display
 
-        if (empty($_SESSION['dmsg'])) {
-            $_SESSION['dmsg'] = $ret;
-            $_SESSION['debug_resets'] = 0;
-            $_SESSION['debug_logs'] = [];
+        $session = CCore::getSessionStore();
+        $currentLog = $session->get('dmsg', '');
+        $currentLog = is_string($currentLog) ? $currentLog : '';
+        if ($currentLog === '') {
+            $session->set('dmsg', $ret);
+            $session->set('debug_resets', 0);
+            $session->set('debug_logs', []);
         } else {
-            $currentSize = strlen($_SESSION['dmsg']);
-            $lineCount = substr_count($_SESSION['dmsg'], "\n");
+            $currentSize = strlen($currentLog);
+            $lineCount = substr_count($currentLog, "\n");
 
             // Reset when approaching screen-full
             if ($currentSize >= $maxScreenSize || $lineCount >= $screenFullLines) {
                 // Log the debug session to array before resetting
-                if (empty($_SESSION['debug_logs'])) {
-                    $_SESSION['debug_logs'] = [];
-                }
-                $_SESSION['debug_logs'][] = [
+                $debugLogs = $session->get('debug_logs', []);
+                $debugLogs = is_array($debugLogs) ? $debugLogs : [];
+                $debugResets = $session->get('debug_resets', 0);
+                $debugResets = is_numeric($debugResets) ? (int) $debugResets : 0;
+                $debugLogs[] = [
                     'timestamp' => date('Y-m-d H:i:s'),
                     'line_count' => $lineCount,
                     'size_kb' => round($currentSize / 1024, 2),
-                    'reset_num' => (int) $_SESSION['debug_resets'] + 1
+                    'reset_num' => $debugResets + 1
                 ];
 
                 // Keep only last 10 debug logs to prevent array bloat
-                if (count($_SESSION['debug_logs']) > 10) {
-                    array_shift($_SESSION['debug_logs']);
+                if (count($debugLogs) > 10) {
+                    array_shift($debugLogs);
                 }
 
                 // Reset on-screen debug
-                $_SESSION['dmsg'] = "[SCREEN RESET - " . (int) $_SESSION['debug_resets'] + 1 . " | " . $lineCount . " lines logged]\n" . $ret;
-                $_SESSION['debug_resets'] = (int) $_SESSION['debug_resets'] + 1;
+                $session->set(
+                    'dmsg',
+                    "[SCREEN RESET - " . ($debugResets + 1) . " | " . $lineCount . " lines logged]\n" . $ret
+                );
+                $session->set('debug_logs', $debugLogs);
+                $session->set('debug_resets', $debugResets + 1);
             } else {
-                $_SESSION['dmsg'] .= $ret;
+                $session->set('dmsg', $currentLog . $ret);
             }
         }
         return $ret;
@@ -204,29 +212,6 @@ class CUtil
     public static function selfURL()
     {
         return CUrl::selfURL();
-    }
-
-    function array2InsStr($iArray)
-    {
-
-        $value = '"' . implode('", "', array_values($iArray)) . '"'; // must use this in case quote in the name
-        $name = implode(", ", array_keys($iArray));
-        // return (jvid, title, maker, explanation, acctmo, prep_date, phone ) VALUES ("1","Title","Maker","Explanation","15","2/11/2011","87878")        
-        return "($name) VALUES ($value)";
-    }
-
-    function array2UptStr($iArray, $checkNumArray = array())
-    {
-
-        $str = "";
-        foreach ($iArray as $key => $val) {
-            if (isset($checkNumArray[$key]) and $key == $checkNumArray[$key] and empty($val)) {
-                $val = "0"; // set to "0" only in the $checkNumArray and is empty
-            }
-            $str .= $key . ' ="' . $val . '", ';
-        }
-        // return maker= 'Name', acctmo= '15', prep_date= '11/2/2011', phone= '87878', explanation= 'Some Text', title='Some Title'
-        return substr($str, 0, strlen($str) - 2); // take out comma and space
     }
 
     function array2Str($iArray)
@@ -371,7 +356,7 @@ class CUtil
     function user_getname()
     {
 
-        if (!empty($_SESSION['LOGGED_IN'])) {
+        if (!empty(CCore::getSessionStore()->get('LOGGED_IN'))) {
             return $GLOBALS['user_name'];
         } else {
             //look up the user some day when we need it
@@ -874,7 +859,7 @@ class CUtil
         //      CMsg::_pdmsg(returl, "getReturnViewFile");
         if (CString::IsEmpty($returl) == false) {
             $qsa = CUtil::qs2nv($returl);
-            $_Session["retUrl"] = "";  // clear redirect MUST DO THIS
+            CCore::getSessionStore()->set('retUrl', '');
             $vFile = CCore::SetView($qsa[1], $qsa[0]); // get redirect returl view
             //        CMsg::_pdmsg(vFile, "retfile");
         }
@@ -882,7 +867,7 @@ class CUtil
     }
     public static function getSessTxt(string $fb = "feedback")
     {
-        return CSession::getSessTxt($fb);
+        return CCore::getSessionStore()->get($fb, '');
     }
     public static function qsValue() // good only if $_SERVER['QUERY_STRING'] has value
     {
@@ -972,10 +957,10 @@ class CUtil
         $a = strtolower($qsa['a'] ?? '');
 
         $excludedT = ['action', 'odata', 'udata'];
-        $excludedA = ['login', '_login', 'logout', '_logout'];
+        $excludedA = ['login', '_login', '_weblogin', '_winlogin', 'logout', '_logout'];
 
         if (!in_array($t, $excludedT) && !in_array($a, $excludedA)) {
-            $_SESSION['lastUrl'] = self::MyUrl();
+            CCore::getSessionStore()->set('lastUrl', self::MyUrl());
         }
     }
 
@@ -1135,8 +1120,8 @@ pln( $uInfoa,'_cfgtg');
                 $returl = $qsa["rurl"]; // from QS of the url of redirected
             } else if (isset($frm["rurl"]) && !CString::IsEmpty($frm["rurl"])) {
                 $returl = $frm["rurl"]; // from the form of redirected
-            } else if (!empty($_SESSION['lastUrl'])) {        // NEW
-                $returl = $_SESSION['lastUrl'];               // NEW
+            } else if (!empty(CCore::getSessionStore()->get('lastUrl'))) {        // NEW
+                $returl = CCore::getSessionStore()->get('lastUrl');               // NEW
 //        } else if (!CString::IsEmpty($selectctrl) && $selectctrl != "action") {
             } else if (!CString::IsEmpty($selectctrl) && $selectctrl != "action" && $selectctrl != "router") {
                 $returl = self::tap("/" . $selectctrl . '/index'); // if not action then use the selected controller for redirect
@@ -1340,7 +1325,8 @@ pln( $uInfoa,'_cfgtg');
      */
     public static function getSessNv(string $key): array
     {
-        return CSession::getSessNv($key);
+        $value = CCore::getSessionStore()->get($key, []);
+        return is_array($value) ? $value : [];
     }
     public static function isEqInList(string $iVar, string $iList, $delim = ',')
     {

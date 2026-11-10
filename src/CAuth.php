@@ -2,6 +2,8 @@
 
 namespace MvcLite;
 
+use MvcLite\Interfaces\ISessionStore;
+
 class CAuth
 {
 
@@ -18,6 +20,7 @@ class CAuth
     // array('nid','username'...)
     public $expiryDate;
     public $ut;
+    private ISessionStore $session;
 
     // to be removed    
     public $id;
@@ -25,10 +28,11 @@ class CAuth
     public $user;
     public $needsRehash = false;
 
-    public function __construct()
+    public function __construct(?CUtil $ut = null, ?ISessionStore $session = null)
     {
 
-        $this->ut = new CUtil;
+        $this->ut = $ut ?? new CUtil();
+        $this->session = $session ?? new PhpSessionStore();
         $this->nid = null;
         $this->loggedIn = false;
         $this->expiryDate = time() + self::ONEMONTH;
@@ -40,17 +44,21 @@ class CAuth
     }
 
     // Get Singleton object
-    public static function getAuth($salt = "")
+    public static function getAuth($salt = "", ?CUtil $ut = null, ?ISessionStore $session = null)
     {
 
         if (is_null(self::$me) || (!empty($salt) && self::$salt !== $salt)) {
             if (empty($salt)) {
-                srand(time());
-                $salt = md5(rand() . microtime());
+                $salt = bin2hex(random_bytes(32));
             }
             self::$salt = $salt;
-            self::$me = new CAuth();
+            self::$me = new CAuth($ut, $session);
             self::$me->init();
+        } elseif ($ut !== null) {
+            self::$me->ut = $ut;
+        }
+        if ($session !== null) {
+            self::$me->session = $session;
         }
         return self::$me;
     }
@@ -58,7 +66,7 @@ class CAuth
     public function init()
     {
         $this->clearCookies();
-        $profile = $_SESSION['uinfo'] ?? null;
+        $profile = $this->session->get('uinfo');
         $username = is_array($profile) ? ($profile['username'] ?? $profile['usrname'] ?? null) : null;
         if (!is_string($username) || $username === '') {
             $this->loggedIn = false;
@@ -175,9 +183,9 @@ class CAuth
     {
 
         $this->loggedIn = false;
-        unset($_SESSION['uinfo']);
-        unset($_SESSION['loggedin']);
-        unset($_SESSION['usrname'], $_SESSION['usrgroup'], $_SESSION['usrentity'], $_SESSION['uinfotxt']);
+        foreach (['uinfo', 'loggedin', 'usrname', 'usrgroup', 'usrentity', 'uinfotxt'] as $key) {
+            $this->session->remove($key);
+        }
         $this->profile = null;
         $this->user = null;
         $this->loggedIn = false;
@@ -194,8 +202,11 @@ class CAuth
 
     public static function generateStrongPassword($length = 9, $add_dashes = false, $available_sets = 'luds')
     {
+        if (!is_int($length) || $length < 1) {
+            throw new \InvalidArgumentException('Password length must be a positive integer.');
+        }
 
-        $sets = array();
+        $sets = [];
         if (strpos($available_sets, 'l') !== false)
             $sets[] = 'abcdefghjkmnpqrstuvwxyz';
         if (strpos($available_sets, 'u') !== false)
@@ -205,18 +216,27 @@ class CAuth
         if (strpos($available_sets, 's') !== false)
             $sets[] = '!@#$%&*?';
 
+        if ($sets === [] || $length < count($sets)) {
+            throw new \InvalidArgumentException('Password length must cover every requested character set.');
+        }
+
         $all = '';
-        $password = '';
+        $characters = [];
         foreach ($sets as $set) {
-            $password .= $set[array_rand(str_split($set))];
+            $characters[] = $set[random_int(0, strlen($set) - 1)];
             $all .= $set;
         }
 
         $all = str_split($all);
-        for ($i = 0; $i < $length - count($sets); $i++)
-            $password .= $all[array_rand($all)];
+        while (count($characters) < $length) {
+            $characters[] = $all[random_int(0, count($all) - 1)];
+        }
 
-        $password = str_shuffle($password);
+        for ($i = count($characters) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$characters[$i], $characters[$j]] = [$characters[$j], $characters[$i]];
+        }
+        $password = implode('', $characters);
 
         if (!$add_dashes)
             return $password;
@@ -237,8 +257,8 @@ class CAuth
             return;
         }
 
-        $_SESSION['uinfo'] = $this->profile;
-        $_SESSION['loggedin'] = $this->profile['username'];
+        $this->session->set('uinfo', $this->profile);
+        $this->session->set('loggedin', $this->profile['username']);
     }
 
     private function clearCookies()
@@ -281,9 +301,7 @@ class CAuth
 
     public static function newNid()
     {
-
-        srand(time());
-        return md5(rand() . microtime());
+        return bin2hex(random_bytes(16));
     }
 
     // from custom, check it out
@@ -306,34 +324,31 @@ class CAuth
 
     public function changeCurrentUsername($new_username)
     {
-
-        srand(time());
-        $this->user->nid = Auth::newNid();
-        $this->nid = $this->user->nid;
-        $this->user->username = $new_username;
-        $this->username = $this->user->username;
-        $this->user->update();
-        $this->profile = (array) $this->user;
-        $this->persistProfileToSession();
+        (new MUser('users'))->changeCurrentUsername($new_username);
+        $this->syncProfileFromSession();
     }
 
     public function impersonateUser($id_or_username)
     {
-        if (ctype_digit($id_or_username))
-            $u = new User($id_or_username);
-        else {
-            $u = new User();
-            $u->select($id_or_username, 'username');
+        if (!is_scalar($id_or_username) || (string) $id_or_username === '') {
+            return false;
         }
 
-        if (!$u->ok())
+        $identity = (string) $id_or_username;
+        $model = new MUser('users');
+        $profile = ctype_digit($identity)
+            ? $model->findById($identity)
+            : $model->findByUsername($identity);
+        if ($profile === null) {
             return false;
+        }
 
-        $this->id = $u->id;
-        $this->nid = $u->nid;
-        $this->username = $u->username;
-        $this->user = $u;
-        $this->profile = (array) $u;
+        $this->profile = $profile;
+        $this->user = (object) $profile;
+        $this->id = $profile['id'] ?? null;
+        $this->nid = $profile['nid'] ?? null;
+        $this->username = $profile['username'] ?? null;
+        $this->loggedIn = true;
         $this->persistProfileToSession();
 
         return true;
@@ -341,45 +356,32 @@ class CAuth
 
     public function changeCurrentPassword($new_password)
     {
-
-        srand(time());
-        $this->user->nid = self::newNid();
-        $this->user->password = self::hashedPassword($new_password);
-        $this->user->update();
-        $this->nid = $this->user->nid;
-        $this->profile = (array) $this->user;
-        $this->persistProfileToSession();
+        (new MUser('users'))->changeCurrentPassword($new_password);
+        $this->syncProfileFromSession();
     }
 
     public static function changeUsername($id_or_username, $new_username)
     {
-        if (ctype_digit($id_or_username))
-            $u = new User($id_or_username);
-        else {
-            $u = new User();
-            $u->select($id_or_username, 'username');
-        }
-
-        if ($u->ok()) {
-            $u->username = $new_username;
-            $u->update();
-        }
+        return MUser::changeUsername($id_or_username, $new_username);
     }
 
     public static function changePassword($id_or_username, $new_password)
     {
-        if (ctype_digit($id_or_username))
-            $u = new User($id_or_username);
-        else {
-            $u = new User();
-            $u->select($id_or_username, 'username');
+        return MUser::changePassword($id_or_username, $new_password);
+    }
+
+    private function syncProfileFromSession(): void
+    {
+        $profile = $this->session->get('uinfo');
+        if (!is_array($profile)) {
+            return;
         }
 
-        if ($u->ok()) {
-            $u->nid = self::newNid();
-            $u->password = self::hashedPassword($new_password);
-            $u->update();
-        }
+        $this->profile = $profile;
+        $this->user = (object) $profile;
+        $this->id = $profile['id'] ?? null;
+        $this->nid = $profile['nid'] ?? null;
+        $this->username = $profile['username'] ?? null;
     }
 
 

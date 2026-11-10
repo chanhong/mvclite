@@ -354,10 +354,11 @@ class CSecs extends CCore
             if (isset($UsrNv["usrname"]) && CString::IsEmpty((string) $UsrNv["usrname"]) == false) {
                 static::$_usr = $UsrNv; // set static _usr
                 self::setUsrsInfo($UsrNv); // for showing in UInfo view
-                $_SESSION["usrname"] = $UsrNv["usrname"];
-                $_SESSION["usrgroup"] = $UsrNv["usrgroup"];
-                $_SESSION["usrentity"] = $UsrNv["usrentity"];
-                $_SESSION["uinfo"] = $UsrNv;
+                $session = CCore::getSessionStore();
+                $session->set("usrname", $UsrNv["usrname"]);
+                $session->set("usrgroup", $UsrNv["usrgroup"]);
+                $session->set("usrentity", $UsrNv["usrentity"]);
+                $session->set("uinfo", $UsrNv);
                 CMsg::_dmsg($UsrNv, "setUserLoginInfo-usr");
             }
         } else {
@@ -395,8 +396,9 @@ class CSecs extends CCore
             static::$_usr["loggedin"] = $usrInfoText; // IMPORTANT need this for the login to work
 
             // $_SESSION["entity"] = $usrentity;
-            $_SESSION["loggedin"] = $loggedIn;
-            $_SESSION["uinfotxt"] = $usrInfoText;
+            $session = CCore::getSessionStore();
+            $session->set("loggedin", $loggedIn);
+            $session->set("uinfotxt", $usrInfoText);
             // }
         }
         return $usrInfoText;
@@ -736,7 +738,9 @@ class CSecs extends CCore
     }
 public static function isAboveGrp(string $group): bool
 {
-    $have = CSecs::getGroupNo($_SESSION['uinfo']['usrgroup'] ?? 'guest');
+    $uinfo = CCore::getSessionStore()->get('uinfo', []);
+    $uinfo = is_array($uinfo) ? $uinfo : [];
+    $have = CSecs::getGroupNo($uinfo['usrgroup'] ?? 'guest');
     return $have > CSecs::getGroupNo($group);
 }    
 }

@@ -17,9 +17,9 @@ class CController extends Ccore
 //    public $layoutsPath;
 
 
-    public function __construct()
+    public function __construct(?CContainer $container = null)
     {
-        parent::__construct();
+        parent::__construct(container: $container);
         $this->layout = $this->cfg->get('info.layout'); //set default template file
         $this->_appFolder = $this->cfg->get('folder.app');
         $this->_viewFolder = $this->cfg->get('folder.view');
@@ -59,10 +59,11 @@ class CController extends Ccore
     function Add2SessVar($iVar, $msg) // self:: in controller class/sub is fine, outsie will trigger depreciated warning
     {
         if ($iVar != "" && $msg != "") {
-            if ($_SESSION[$iVar] != null || $_SESSION[$iVar] != "") {
-                $_SESSION[$iVar] .= " " . $msg;
+            $current = $this->sessionStore()->get((string) $iVar);
+            if (is_scalar($current) && (string) $current !== "") {
+                $this->sessionStore()->set((string) $iVar, (string) $current . " " . $msg);
             } else {
-                $_SESSION[$iVar] = $msg;
+                $this->sessionStore()->set((string) $iVar, $msg);
             }
         }
     }
@@ -78,7 +79,7 @@ class CController extends Ccore
     function feedback($fb = "feedback", $color = "")
     {
 
-        $feedback = $this->ut->getSafeVar($_SESSION, $fb, "raw");
+        $feedback = $this->ut->getSafeVar([$fb => $this->sessionStore()->get((string) $fb)], $fb, "raw");
         if (!empty($feedback))
             $feedback = $this->alertMsg($feedback, $color);
         return $feedback;
@@ -109,15 +110,17 @@ class CController extends Ccore
 
     public function sendToLoginPage($rUrl = "")
     {
+        $this->redirect2Url($this->loginRedirectUrl((string) $rUrl));
+    }
 
+    protected function loginRedirectUrl(string $rUrl): string
+    {
         $url = self::$loginUrl;
-        //        $full_url = urlencode($rUrl); // must do this or missing & qs
-        $full_url = $rUrl; // must do this or missing & qs
-        if (strpos($full_url, 'logout') === false) {
-            $url .= '&r=' . $full_url;
+        if (strpos($rUrl, 'logout') === false) {
+            $url .= '&r=' . rawurlencode($rUrl);
         }
 
-        $this->redirect2Url($url);
+        return $url;
     }
 
     public static function xqsValue()
@@ -336,7 +339,7 @@ class CController extends Ccore
         //        $shortName = strtolower(self::shortClass($iClassName)); // for comparison only
         $shortName = strtolower((new \ReflectionClass($iClassName))->getShortName()); // "ClassName" change get shortname to work in php 8.5
 
-        $ctl = new $iClassName;                           // use FQN to instantiate
+        $ctl = $this->makeClass($iClassName);
 
         if ($app == $shortName) {  // compare using short name
             if ((self::isMyAction($iClassName, $action) == true) and method_exists($ctl, $action)) {
@@ -381,7 +384,7 @@ class CController extends Ccore
     {
         $p404 = CConfig::$_cfg['routes']['page404'];
         $buff = "";
-        $ctl = CUtil::getClass($shortNameRte);
+        $ctl = $this->makeClass($shortNameRte);
         $vFile = $ctl->isLayout($ctl->layout);
         self::$_action = $p404;  // <-- temp critical fix        for the doBodyNoLayout() ignore the 'content' but don't need with the fix in doBodyNoLayout()
         $ctl->_view_data['content'] = $ctl->renderAppView($p404); // render content before the layout
@@ -402,7 +405,7 @@ class CController extends Ccore
         $p404 = CConfig::$_cfg['routes']['page404'];
         $task = $args['t'];
         $action = $args['a'];
-        $ctl = CUtil::getClass($shortNameRte);
+        $ctl = $this->makeClass($shortNameRte);
         $s404 = $this->stg->get('404s'); // ordered fallback view locations, e.g. ['action','router']
 
         pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
@@ -435,7 +438,7 @@ class CController extends Ccore
         $p404 = CConfig::$_cfg['routes']['page404'];
         $task = $args['t'];
         $action = $args['a'];
-        $ctl = CUtil::getClass($shortNameRte);
+        $ctl = $this->makeClass($shortNameRte);
         $s404 = $this->stg->get('404s'); // 404 locations ['action','router']
         pln(['HERE headers_sent' => headers_sent(), 't' => $task, 'a' => $action], "U404-entry 4:$p404");
 
@@ -460,6 +463,45 @@ class CController extends Ccore
         return is_string($v) ? strtolower(trim(explode(',', $v, 2)[0])) : '';
     }
 
+    protected function routeAccessStatus(array $args): string
+    {
+        $task = strtolower((string) ($args['t'] ?? ''));
+        $action = strtolower((string) ($args['a'] ?? ''));
+        $taskGroups = $this->stg->get('tg') ?? [];
+        $exemptControllers = $this->stg->get('tgExemptControllers') ?? [];
+
+        if (($task === 'users' && $action === 'logout')
+            || in_array($task, $exemptControllers, true)
+        ) {
+            return 'allowed';
+        }
+
+        $entry = $taskGroups[$task] ?? null;
+        if (!is_array($entry)) {
+            return 'not_found';
+        }
+
+        $actionGroup = $this->actionGroup($task, $action);
+        $actionAllowed = in_array($action, $entry['actions'] ?? [], true)
+            || $actionGroup !== '';
+        if (!$actionAllowed) {
+            return 'not_found';
+        }
+
+        $uinfo = $this->sessionStore()->get('uinfo', []);
+        $uinfo = is_array($uinfo) ? $uinfo : [];
+        $userGroup = $uinfo['usrgroup'] ?? 'guest';
+        $taskGroup = $entry['group'] ?? null;
+
+        if (!CSecs::IsUsrGrpComp($userGroup, $taskGroup, '>=')
+            || ($actionGroup !== '' && !CSecs::IsUsrGrpComp($userGroup, $actionGroup, '>='))
+        ) {
+            return 'forbidden';
+        }
+
+        return 'allowed';
+    }
+
     /*
 
     */
@@ -471,7 +513,8 @@ class CController extends Ccore
         $tg = $this->stg->get('tg') ?? [];
         $tgpass = $this->stg->get('tgExemptControllers') ?? [];
         $entry[$task] = $tg[strtolower($task)] ?? null;
-        $uinfo = $_SESSION["uinfo"] ?? [];
+        $uinfo = $this->sessionStore()->get('uinfo', []);
+        $uinfo = is_array($uinfo) ? $uinfo : [];
         $ugrp = $uinfo['usrgroup'] ?? 'guest';
         $tgrp = $entry[$task]['group'] ?? null;
         $agrp = $this->actionGroup(strtolower((string) $task), strtolower((string) $action));   // NEW
@@ -487,22 +530,9 @@ class CController extends Ccore
                 || ($agrp !== '' && !CSecs::IsUsrGrpComp($ugrp, $agrp, ">="))
                 || !$actionOk;
         }
-if ($notTnTg) {
-    error_log(sprintf('isNotTG deny t=%s a=%s ugrp=%s tgrp=%s agrp=%s', $task, $action, $ugrp, (string) $tgrp, $agrp));
-}
-/*        
         if ($notTnTg) {
-            error_log(sprintf(
-                'isNotTG deny t=%s a=%s user=%s ugrp=%s tgrp=%s agrp=%s',
-                $task,
-                $action,
-                $_SESSION['uinfo']['username'] ?? $_SESSION['uinfo']['usrname'] ?? '-',
-                $ugrp,
-                (string) $tgrp,
-                $agrp
-            ));
+            error_log(sprintf('isNotTG deny t=%s a=%s ugrp=%s tgrp=%s agrp=%s', $task, $action, $ugrp, (string) $tgrp, $agrp));
         }
-            */
         return $notTnTg;
     }
     public function NO_delete_isNotTG($args, $shortNameRte) // always MvcLite\Router
@@ -513,7 +543,8 @@ if ($notTnTg) {
         $tg = $this->stg->get('tg') ?? [];
         $tgpass = $this->stg->get('tgExemptControllers') ?? [];
         $entry[$task] = $tg[strtolower($task)] ?? null;
-        $uinfo = $_SESSION["uinfo"] ?? [];
+        $uinfo = $this->sessionStore()->get('uinfo', []);
+        $uinfo = is_array($uinfo) ? $uinfo : [];
         $ugrp = $uinfo['usrgroup'] ?? 'guest';
         $tgrp = $entry[$task]['group'] ?? null;
         $agrp = $this->actionGroup(strtolower((string) $task), strtolower((string) $action));   // NEW
@@ -537,7 +568,7 @@ if ($notTnTg) {
         /*
             pln([
             'session_id' => session_id(),
-            'uinfo_at_entry' => $_SESSION['uinfo'] ?? 'MISSING',
+            'uinfo_at_entry' => $this->sessionStore()->get('uinfo', 'MISSING'),
         ], 'doRouter-entry');        
         */
         //                pln($this->stg->get('tg'), "tg");
@@ -548,19 +579,25 @@ if ($notTnTg) {
         //        pln($args, 'doRouter-args-for-logout');
         //        print "cn: $iClassName sn: $shortName rt: " . print_r($routes, true) . ", args: " . print_r($args, true); // already got 404?? redirect?
         $task = $args['t'];
-        $tCtl = CUtil::getClass($task);
 
         // safe current action/view to be render by doBodyContent()
         self::$_action = $action = $args['a'];
-        $rCtl = CUtil::getClass($iClassName);
 
         // WORK 08/23: tg (built fresh every request by setMenu(), gated by usrgroup, sourced from the
         // master task directory - not $selctrl) is the single source of truth for t=/a= access.
         // Router itself (t=router) is exempt - it's not a task.
-        if (self::isNotTG($args, $shortNameRte) == true) {
-            $this->U404($args, $shortNameRte); // 404
+        $routeStatus = $this->routeAccessStatus($args);
+        if ($routeStatus !== 'allowed') {
+            if ($routeStatus === 'forbidden') {
+                $this->U403($args, $shortNameRte);
+            } else {
+                $this->U404($args, $shortNameRte);
+            }
             return;
         }
+
+        $tCtl = class_exists($task) ? $this->makeClass($task) : null;
+        $rCtl = $this->makeClass($iClassName);
 
         //        print (print_r($this->stg->get('tg'), true));
         switch (true) {
@@ -666,6 +703,35 @@ if ($notTnTg) {
             . '<title>404 Not Found</title><style>@media (prefers-color-scheme:dark){body{background-color:#000!important}}</style></head>'
             . '<body style="color: #444; margin:0;font: normal 14px/20px Arial, Helvetica, sans-serif; height:100%; background-color: #fff;">'
             . $i404
+            . '</body></html>';
+    }
+
+    public function U403($args, $shortNameRte): void
+    {
+        http_response_code(403);
+        $ctl = $this->makeClass($shortNameRte);
+        $ctl->_class_path = strtolower((string) $shortNameRte);
+        $task = strtolower((string) ($args['t'] ?? ''));
+        if ($this->routeAccessStatus(['t' => $task, 'a' => 'index']) !== 'allowed') {
+            $task = 'front';
+        }
+        $ctl->_view_data['return_url'] = '?t=' . rawurlencode($task) . '&a=index';
+
+        if ($ctl->isAppView('403', $ctl->_class_path)) {
+            self::doView($ctl, '403');
+            return;
+        }
+
+        $this->i403();
+    }
+
+    public function i403(): void
+    {
+        http_response_code(403);
+        echo '<!DOCTYPE html><html><head><title>403 Forbidden</title></head><body>'
+            . '<h1>403 Forbidden</h1>'
+            . '<p>You do not have permission to perform this action.</p>'
+            . '<p><a href="?t=front&amp;a=index">Return to the home page</a></p>'
             . '</body></html>';
     }
 

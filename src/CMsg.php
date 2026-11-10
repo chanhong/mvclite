@@ -38,9 +38,9 @@ class CMsg extends CCore
         if ($sfbdmsg != null && strlen($sfbdmsg) > 0) {
             $prev = $sfbdmsg . " ";
         }
-        // must use this to avoid un-initialize error
-        $_SESSION[$mvar] = $prev . $message;
-        return $_SESSION[$mvar];
+        $session = CCore::getSessionStore();
+        $session->set($mvar, $prev . $message);
+        return $session->get($mvar, '');
     }
 
 
@@ -76,8 +76,8 @@ class CMsg extends CCore
             }
 
             // Special Case: HttpSessionState (In C#, iterating Session returns keys)
-            // In PHP, we simulate this if the source is specifically the session global
-            if ($source === $_SESSION) {
+            // In PHP, simulate this when the source is the current session snapshot.
+            if ($source === CCore::getSessionStore()->all()) {
                 foreach (array_keys($source) as $s) {
                     $ret .= $i . "=[" . $s . "],";
                     $i++;

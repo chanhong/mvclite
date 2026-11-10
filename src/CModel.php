@@ -10,10 +10,10 @@ namespace MvcLite;
 class CModel extends CCore
 {
 
-    public function __construct($tname, $id = null)
+    public function __construct($tname, $id = null, ?CContainer $container = null)
     {
 
-        parent::__construct();
+        parent::__construct(container: $container);
         // get table name from controller
         $this->meTable = $tname;
     }
@@ -76,6 +76,60 @@ class CModel extends CCore
             }
         }
     }
+
+    /**
+     * Read rows through the injected query service using structured criteria.
+     *
+     * @param array<string, scalar|null> $criteria
+     * @param array<int, string> $fields
+     * @return array<int, array<string, mixed>>
+     */
+    public function selectRows(array $criteria = [], array $fields = ['*']): array
+    {
+        $table = $this->quoteIdentifierPath((string) $this->meTable);
+        $selectFields = [];
+        foreach ($fields as $field) {
+            if (!is_string($field)) {
+                throw new \InvalidArgumentException('Selected fields must be strings.');
+            }
+            if ($field === '*') {
+                if (count($fields) !== 1) {
+                    throw new \InvalidArgumentException('Wildcard selection cannot be combined with named fields.');
+                }
+                $selectFields[] = '*';
+                continue;
+            }
+            $selectFields[] = $this->quoteIdentifierPath($field);
+        }
+        if ($selectFields === []) {
+            throw new \InvalidArgumentException('At least one field must be selected.');
+        }
+
+        $conditions = [];
+        $parameters = [];
+        foreach ($criteria as $column => $value) {
+            if (!is_string($column) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column)) {
+                throw new \InvalidArgumentException('Invalid query criteria column.');
+            }
+            if ($value !== null && !is_scalar($value)) {
+                throw new \InvalidArgumentException('Query criteria values must be scalar or null.');
+            }
+
+            $quotedColumn = $this->quoteIdentifierPath($column);
+            $conditions[] = $value === null ? "$quotedColumn IS NULL" : "$quotedColumn = ?";
+            if ($value !== null) {
+                $parameters[] = $value;
+            }
+        }
+
+        $query = 'SELECT ' . implode(', ', $selectFields) . ' FROM ' . $table;
+        if ($conditions !== []) {
+            $query .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        return $this->fetchRowsByQuery($query, $parameters);
+    }
+
     /**
      * Retrieves schema information from the database for a given table.
      *
@@ -172,4 +226,3 @@ class CModel extends CCore
         return ($g !== '' && $g !== 'guest' && array_key_exists($g, $groups)) ? $g : $default;
     }
 }
-

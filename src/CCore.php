@@ -13,6 +13,12 @@
  */
 namespace MvcLite;
 use PdoLite\PdoLite;
+use MvcLite\Interfaces\IPdoConnectionFactory;
+use MvcLite\Interfaces\IRowQuery;
+use MvcLite\Interfaces\IRowCommand;
+use MvcLite\Interfaces\IRowSchema;
+use MvcLite\Interfaces\ISessionStore;
+use MvcLite\Interfaces\IPasswordRehasher;
 
 defined('_MVCLite') or die('Direct Access to this location is not allowed.');
 
@@ -42,6 +48,7 @@ class CCore
     // DI Container — set once at application boot via CCore::setContainer()
     // -------------------------------------------------------------------------
     private static CContainer $container;
+    private ?CContainer $di = null;
 
     /**
      * Call this in your front controller / index.php before anything else.
@@ -50,7 +57,7 @@ class CCore
      *   $c = new \MvcLite\Container();
      *   $c->singleton('db',     fn() => new \PdoLite\PdoLite());
      *   $c->singleton('util',   fn() => new \MvcLite\CUtil());
-     *   $c->singleton('helper', fn() => new \MvcLite\CHelper());
+     *   $c->singleton('helper', fn() => new \MvcLite\CHtml());
      *   $c->singleton('auth',   fn() => \MvcLite\CAuth::getAuth('MvcLiteSALT'));
      *   $c->singleton('error',  fn() => \MvcLite\CError::getError());
      *   \MvcLite\CCore::setContainer($c);
@@ -60,12 +67,26 @@ class CCore
         self::$container = $c;
     }
 
+    public static function hasContainer(): bool
+    {
+        return isset(self::$container);
+    }
+
     public static function getContainer(): CContainer
     {
         if (!isset(self::$container)) {
             throw new \RuntimeException('CCore:: container has not been set. Call CCore::setContainer() at boot.');
         }
         return self::$container;
+    }
+
+    public static function getSessionStore(): ISessionStore
+    {
+        if (self::hasContainer() && self::$container->has(ISessionStore::class)) {
+            return self::$container->make(ISessionStore::class);
+        }
+
+        return new PhpSessionStore();
     }
 
     // -------------------------------------------------------------------------
@@ -80,6 +101,10 @@ class CCore
     public $ut;
     public $h;
     public $db;
+    protected IRowQuery $rowQuery;
+    protected IRowCommand $rowCommand;
+    protected IRowSchema $rowSchema;
+    protected ?ISessionStore $session = null;
     public $meTable;
 
     protected $_view_data = [];
@@ -90,6 +115,7 @@ class CCore
     protected $get;
     protected $post;
     public $_request;
+    protected $server;
     public $view_ext = 'php';
     public $layout;
     public $appsFolder;
@@ -128,26 +154,57 @@ see public\index.php step 5-8
     public function __construct(
         ?PdoLite $db = null,
         ?CUtil $ut = null,
-        ?CHelper $h = null,
+        ?CHtml $h = null,
         mixed $auth = null,
         mixed $error = null,
         mixed $cfg = null,
-        mixed $stg = null
+        mixed $stg = null,
+        ?CContainer $container = null,
+        ?IRowQuery $rowQuery = null,
+        ?IRowCommand $rowCommand = null,
+        ?IRowSchema $rowSchema = null,
+        ?ISessionStore $session = null
     ) {
-        CHelper::$_lineBreak = true;
+        $this->di = $container ?? self::$container ?? null;
+        CHtml::$_lineBreak = true;
 
         $this->db = $db ?? $this->resolve('db', fn() => new PdoLite());
         $this->ut = $ut ?? $this->resolve('util', fn() => new CUtil());
-        $this->h = $h ?? $this->resolve('helper', fn() => new CHelper());
+        $this->h = $h ?? $this->resolve('helper', fn() => new CHtml());
         $this->Auth = $auth ?? $this->resolve('auth', fn() => CAuth::getAuth('MvcLiteSALT'));
         $this->Error = $error ?? $this->resolve('error', fn() => CError::getError());
 
         $this->cfg = $cfg ?? $this->resolve('cfg', fn() => new CConfig());
         $this->stg = $stg ?? $this->resolve('stg', fn() => new CSetting());
+        $connections = $this->resolve(
+            IPdoConnectionFactory::class,
+            fn() => new PdoConnectionFactory(
+                $this->cfg instanceof CConfig ? $this->cfg : new CConfig(),
+                $this->stg instanceof CSetting ? $this->stg : new CSetting()
+            )
+        );
+        $this->rowQuery = $rowQuery ?? $this->resolve(
+            IRowQuery::class,
+            fn() => new PdoRowQuery($connections)
+        );
+        $this->rowCommand = $rowCommand ?? $this->resolve(
+            IRowCommand::class,
+            fn() => new PdoRowCommand($connections)
+        );
+        $this->rowSchema = $rowSchema ?? $this->resolve(
+            IRowSchema::class,
+            fn() => new PdoRowSchema($connections)
+        );
+        $this->session = $session ?? $this->resolve(
+            ISessionStore::class,
+            fn() => new PhpSessionStore()
+        );
 
 
         $this->get = $_GET;
         $this->post = $_POST;
+        $this->_request = $_REQUEST;
+        $this->server = $_SERVER;
 
         if ($this->className === null) {
             $this->className = get_class($this);
@@ -157,7 +214,7 @@ see public\index.php step 5-8
 
 // NO        (!empty($_REQUEST['r'])) ? $this->retUrl = $_REQUEST['r'] : $this->retUrl = '?';
 
-$r = (string)($_REQUEST['r'] ?? '');
+$r = (string)($this->_request['r'] ?? '');
 $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';        
     }
 
@@ -168,14 +225,31 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
      */
     private function resolve(string $id, callable $default): mixed
     {
-        if (isset(self::$container)) {
-            try {
-                return self::$container->make($id);
-            } catch (\RuntimeException) {
-                // binding not registered yet — fall through to default
-            }
+        if ($this->di !== null && $this->di->has($id)) {
+            return $this->di->make($id);
         }
         return $default();
+    }
+
+    protected function sessionStore(): ISessionStore
+    {
+        return $this->session ??= new PhpSessionStore();
+    }
+
+    protected function makeClass(string $className, array $arguments = []): object
+    {
+        if ($this->di !== null) {
+            return $arguments === []
+                ? $this->di->make($className)
+                : $this->di->makeWith($className, $arguments);
+        }
+
+        if (!class_exists($className)) {
+            throw new \RuntimeException("Cannot instantiate unknown class '$className'.");
+        }
+
+        $reflection = new \ReflectionClass($className);
+        return $reflection->newInstanceArgs($arguments);
     }
 
     // -------------------------------------------------------------------------
@@ -215,17 +289,20 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
 
     public function csrfToken(): string
     {
-        if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || strlen($_SESSION['_csrf_token']) !== 64) {
-            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        $session = $this->sessionStore();
+        $token = $session->get('_csrf_token');
+        if (!is_string($token) || strlen($token) !== 64) {
+            $token = bin2hex(random_bytes(32));
+            $session->set('_csrf_token', $token);
         }
 
-        return $_SESSION['_csrf_token'];
+        return $token;
     }
 
     public function hasValidCsrfPost(): bool
     {
         $submittedToken = $_POST['_csrf_token'] ?? null;
-        $sessionToken = $_SESSION['_csrf_token'] ?? null;
+        $sessionToken = $this->sessionStore()->get('_csrf_token');
 
         return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
             && is_string($submittedToken)
@@ -274,7 +351,44 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
 
     protected function fetchRowsByQuery(string $query, array $params): array
     {
-        return CDbPdo::oleGetRowsParam($query, $params);
+        return $this->rowQuery->fetchAll($query, $params);
+    }
+
+    protected function executeCommand(string $query, array $params): int
+    {
+        return $this->rowCommand->execute($query, $params);
+    }
+
+    /**
+     * Keep only fields present in the selected table, preserving database casing.
+     *
+     * @param array<string, mixed> $fields
+     * @return array<string, mixed>
+     */
+    protected function filterFieldsBySchema(string $table, array $fields): array
+    {
+        $columns = [];
+        foreach (array_keys($this->getTableColumns($table)) as $column) {
+            $columns[strtolower($column)] = $column;
+        }
+
+        $filtered = [];
+        foreach ($fields as $field => $value) {
+            $column = $columns[strtolower((string) $field)] ?? null;
+            if ($column !== null) {
+                $filtered[$column] = $value;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function getTableColumns(string $table): array
+    {
+        return $this->rowSchema->columns($table);
     }
 
     protected function quoteIdentifierPath(string $identifier): string
@@ -289,15 +403,52 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
         return implode('.', array_map(static fn(string $part): string => '[' . $part . ']', $parts));
     }
 
-    public function dbIsAuthorized($validate, $where, $meTable)
+    /**
+     * Authenticate against a row selected by equality criteria.
+     *
+     * Criteria keys are column names and values are always bound as parameters;
+     * callers must not pass a raw SQL WHERE clause.
+     *
+     * @param array<string, scalar|null> $criteria
+     */
+    public function dbIsAuthorized($validate, array $criteria, string $meTable)
     {
-        if (!empty($validate) and !empty($where) and !empty($meTable)) {
-            $this->Auth->logout();
-            $userRow = $this->db->dbRow($meTable, ['where' => $where]);
-            if ($this->Auth->login($validate, $userRow) <> null) {
-                return $userRow;
+        if (empty($validate) || $criteria === [] || $meTable === '') {
+            return null;
+        }
+
+        $conditions = [];
+        $parameters = [];
+        foreach ($criteria as $column => $value) {
+            if (!is_string($column) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column)) {
+                throw new \InvalidArgumentException('Invalid authorization criteria column.');
+            }
+            if ($value !== null && !is_scalar($value)) {
+                throw new \InvalidArgumentException('Authorization criteria values must be scalar or null.');
+            }
+
+            $quotedColumn = $this->quoteIdentifierPath($column);
+            $conditions[] = $value === null ? "$quotedColumn IS NULL" : "$quotedColumn = ?";
+            if ($value !== null) {
+                $parameters[] = $value;
             }
         }
+
+        $table = $this->quoteIdentifierPath($meTable);
+        $this->Auth->logout();
+        $rows = $this->fetchRowsByQuery(
+            'SELECT * FROM ' . $table . ' WHERE ' . implode(' AND ', $conditions),
+            $parameters
+        );
+        $userRow = $rows[0] ?? null;
+        if ($userRow === null) {
+            return null;
+        }
+        if ($this->Auth->login($validate, $userRow) <> null) {
+            return $userRow;
+        }
+
+        return null;
     }
     public static function SetView(string $sView, string $sTask = "")
     {
@@ -403,12 +554,11 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
     public static function ClearUser()
     {
         // Do NOT use session_destroy() or session_unset() if you still need debug messages
-        unset($_SESSION['usrname']);
-        unset($_SESSION['usrgroup'], $_SESSION['usrentity']);
-        unset($_SESSION['uinfo']);
+        $session = self::getSessionStore();
+        foreach (['usrname', 'usrgroup', 'usrentity', 'uinfo', 'loggedin', 'uinfotxt'] as $key) {
+            $session->remove($key);
+        }
         // unset($_SESSION['_uprf']);   // commented in original
-        unset($_SESSION['loggedin']);
-        unset($_SESSION['uinfotxt']);
 
         CCore::$_cfg['logoff'] = '';   // reset
         CCore::$_uprf = null;
@@ -416,6 +566,7 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
     }
     public static function CLogin($frm)
     {
+        $session = self::getSessionStore();
         $ret = false;
         $msg = "Please login!";
         $app = "";
@@ -443,7 +594,8 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                 //          && $usrname == $_usr["usrname"] // why?
             ) {
                 if ($loginType == "web" && CString::IsEmpty($pw) == false) {
-                    $hash = CSecs::GetMd5Hash($pw);
+                    $storedPassword = (string) ($_usr["usrpw"] ?? '');
+                    $isLegacyMd5 = preg_match('/^[a-f0-9]{32}$/iD', $storedPassword) === 1;
                     /*
                     CMsg::_dprt($hash, "hash");
                     CMsg::_dprt($_usr["usrpw"], "usrhash");
@@ -451,7 +603,9 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                     CMsg::_dmsg($hash, "hash");
                     CMsg::_dmsg($_usr["usrpw"], "usrpw");
          */
-                    if ($hash == $_usr["usrpw"]) {
+                    if ($isLegacyMd5
+                        ? hash_equals(strtolower($storedPassword), CSecs::GetMd5Hash($pw))
+                        : ($storedPassword !== '' && password_verify($pw, $storedPassword))) {
                         $_usr["litype"] = $loginType;
                         //              CMsg::_dmsg($_usr, "login-web");
                         $ret = true;
@@ -460,7 +614,7 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
                         CMsg::_dmsg($_usr, "login-web-hash failed");
                         CUtil::Add2SessVar("alert", "Failed password validation!");
                     }
-                } else if ($loginType == "win" && CString::IsEmpty(pw)) {
+                } else if ($loginType == "win" && CString::IsEmpty($pw)) {
                     if ($usrname == CSecs::winUser()) {
                         $_usr["litype"] = $loginType;
                         //              CMsg::_dmsg($_usr, "login-win");
@@ -470,15 +624,26 @@ $this->retUrl = preg_match('~^(\?|/(?![/\\\\]))~', $r) ? $r : '?';
             }
 
             if ($ret == true) {
+                if ($app === 'jv'
+                    && $loginType === 'web'
+                    && $isLegacyMd5
+                    && self::hasContainer()
+                    && self::getContainer()->has(IPasswordRehasher::class)) {
+                    self::getContainer()->make(IPasswordRehasher::class)->rehashLegacyPassword(
+                        (string) $usrname,
+                        (string) $pw,
+                        'dbejv'
+                    );
+                }
                 if (session_status() === PHP_SESSION_ACTIVE) {
                     session_regenerate_id(true);
                 }
                 $loggedin = CSecs::setUsrInfoText();
                 $msg = "You are login as " . $loggedin; // this set the variable for a successful login
                 $_usr['level'] = $_usr['usrgroup'];
-                $_SESSION["uinfo"] = $_usr; // get litype into session
-                $_SESSION['uinfo']['level'] = $_usr['usrgroup'];   // patch for PHP users login access       
-                $_SESSION["loggedin"] = $loggedin; // also set loggedin in session for consistency and future checks
+                $_usr['level'] = $_usr['usrgroup'];   // patch for PHP users login access
+                $session->set('uinfo', $_usr);
+                $session->set('loggedin', $loggedin); // also set loggedin in session for consistency and future checks
                 static::$_usr["loggedin"] = $loggedin; // set loggedin for the current user session
                 CMsg::_dmsg($_usr, $msg);
                 CUtil::Add2SessVar("feedback", $msg);

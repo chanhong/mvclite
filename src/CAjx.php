@@ -116,11 +116,15 @@ namespace MvcLite {
         
         public static function pDoGet($me, string $tName, string $opr, string $where): void
         {
+            if (strtolower($opr) !== 'select') {
+                throw new \InvalidArgumentException('pDoGet only supports select operations.');
+            }
+
             $me->meTable = $tName;
-            $me->model = new \MvcLite\CModel($me->meTable); // pass table name into constructor
-            $where = "1 = 1";
-            $sparm = [["where" => $where]];
-            $rows = $me->model->_dbt($opr, ['where' => $where]);
+            $me->model = \MvcLite\CCore::hasContainer()
+                ? \MvcLite\CCore::getContainer()->makeWith(\MvcLite\CModel::class, ['tname' => $me->meTable])
+                : new \MvcLite\CModel($me->meTable);
+            $rows = $me->model->selectRows();
             \CUtil::outJson(json_encode($rows));
         }
 
