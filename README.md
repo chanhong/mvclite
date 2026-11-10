@@ -35,4 +35,9 @@ git subtree add --prefix=apps/Lib/mvclite mvclite master
 git subtree push --prefix=apps/Lib/mvclite mvclite master
 git subtree pull --prefix=apps/Lib/mvclite mvclite master
 
+// fresh subtree repo checkout
+git remote add mvclite https://github.com/chanhong/mvclite.git
+git remote -v
+git fetch mvclite
+
 
