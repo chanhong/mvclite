@@ -31,8 +31,8 @@ class CDebug
     public static function IsDebug()
     {
         $ret = false;
-        if (\_MVCDEBUG == true)
-        //       || CUtil::isEqInList(CSecs::winUser(), CSetting::get(("weblogin", "L"), '|')) // selective, only allow winuser listed in weblogin to see dmsg
+        if ((\_MVCDEBUG == true)
+               || CUtil::isEqInList(CSecs::winUser(), CSetting::get("weblogin", "L"), '|')) // selective, only allow winuser listed in weblogin to see dmsg
         {
             $ret = true;
         }

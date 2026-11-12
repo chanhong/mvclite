@@ -42,6 +42,7 @@ class CSecs extends CCore
         $ret = false;
         $usrname = self::winUser();
         $usrgrp = self::getUserGroup($usrname);
+        pln($usrname, "isIntrgUser-$usrgrp ");
 
         //        CMsg::_msg($usrname . "-" . $usrgrp, "isIntrgUser");
         // CMsg::_msg(static::$_usr, "_usr");
@@ -81,16 +82,6 @@ class CSecs extends CCore
         return $ret;
     }
 
-    /**
-     * Gets Windows User identity
-     * @return string
-     */
-    public static function winUser_good()
-    {
-        $wUser = strtolower(HttpContext::Current()->User()->Identity()->Name());
-        $ret = CString::subStrRt($wUser, "\\");
-        return $ret;
-    }
 
     public static function winUser()
     {
@@ -106,18 +97,6 @@ class CSecs extends CCore
 
         }
         return $winId; // get Windows User ID without domain name
-    }
-    /**
-     * Gets Windows User or NetID
-     * @return string
-     */
-    public static function cs_winUser()
-    {
-        $wUser = strtolower(HttpContext::Current()->User()->Identity()->Name()); // get AMC\userid
-        // bad? crash in isDebug() CMsg::_msg($wUser, "wUser-b");
-        $ret = CString::subStrRt($wUser, "\\"); // AMC\userid or netid@washington.edu if using Shibboleth
-        $ret = (CString::IsEmpty($ret)) ? self::uwNetID($wUser) : $ret; // if NOT AMC then get the email from string
-        return $ret;
     }
 
     /**
@@ -228,6 +207,8 @@ class CSecs extends CCore
      */
     public static function getUserGroup($usrname)
     {
+        pln($usrname, "getUserGroup");
+
         $grp = "";
         $infoa = [];
         if (static::$_cfg != null) {
@@ -252,6 +233,7 @@ class CSecs extends CCore
                 CMsg::_msg($s . ":" . $grp, "getUserGroup-u:g");
             }
         }
+        pln($usrname . ":" . $grp, "getUserGroup-u:g");
         return $grp;
     }
 
