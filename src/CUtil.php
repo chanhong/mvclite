@@ -115,9 +115,9 @@ class CUtil
         $ret = $str . $dTrace . " ";
 
         // Write to file log
-   $logDir = (string) (CSetting::get('logdir') ?: dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs');  
-   pln($logDir,'ldir');      
-//        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
+        $logDir = (string) (CSetting::get('logdir') ?: dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs');
+        pln($logDir, 'ldir');
+        //        $logDir = dirname(dirname(dirname(dirname(__DIR__)))) . '/db/logs'; // 4 dirname to get to root from Lib/mvclite/src
         @mkdir($logDir, 0775, true); // Create logs directory if it doesn't exist
         $logFile = $logDir . '/debug_' . date('Y-m-d') . '.log';
         $fileHandle = @fopen($logFile, 'a');
@@ -329,12 +329,11 @@ class CUtil
         return $retArray;
     }
 
-    function sendAttachment($subject, $sendto, $replyto, $message, $htmlfile)
+    public static function sendAttachment($subject, $sendto, $replyto, $message, $htmlfile)
     {
-
         $mimetype = "text/plain";
         $mailfile = new CMailfile($subject, $sendto, $replyto, $message, $htmlfile, $mimetype);
-        $mailfile->sendfile();
+        return $mailfile->sendfile();
     }
 
     function trimSpaces($str)
@@ -1711,4 +1710,9 @@ if ($namesArray === null) {
     {
         return CString::Validate($iType, $iStr);
     }
+    public static function SmtpClient(array $frm, array $upload = []): void // wrapper for CMailfile::SmtpClient
+    {
+        CMailfile::SmtpClient($frm, $upload);
+    }
+
 }

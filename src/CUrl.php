@@ -4,6 +4,7 @@ namespace MvcLite;
 
 class CUrl
 {
+
     public static function relRoot($adj = "")
     {
         $levels = substr_count($_SERVER['PHP_SELF'], '/');
