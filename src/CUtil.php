@@ -304,6 +304,19 @@ class CUtil
         return $eachpost;
     }
 
+    public static function CleanNv(?array $source, string $clnType = "dec4vw"): array
+    {
+        $nv = [];
+        if ($source !== null && count($source) > 0) {
+            foreach ($source as $s => $val) {
+                if ($val !== null) {
+                    $nv[$s] = self::cleanStr($val, $clnType);
+                }
+            }
+        }
+        return $nv;
+    }
+
     function cleanAmt($amt)
     {
 
@@ -334,6 +347,34 @@ class CUtil
         $mimetype = "text/plain";
         $mailfile = new CMailfile($subject, $sendto, $replyto, $message, $htmlfile, $mimetype);
         return $mailfile->sendfile();
+    }
+
+    public static function SendMail(string $to, string $subj, string $msgBody, string $from, string $server = "mailhost.mcis.washington.edu")
+    {
+        try {
+            if (class_exists('\PHPMailer\PHPMailer\PHPMailer')) {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host = $server;
+                $mail->SMTPAuth = false;
+                $mail->CharSet = 'UTF-8';
+                $mail->setFrom($from);
+                $mail->addAddress($to);
+                $mail->Subject = $subj;
+                $mail->Body = $msgBody;
+                $mail->isHTML(true);
+                $mail->send();
+            } else {
+                $headers = "From: $from\r\n";
+                $headers .= "MIME-Version: 1.0\r\n";
+                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+                if (!mail($to, $subj, $msgBody, $headers)) {
+                    throw new \RuntimeException("mail() failed to send.");
+                }
+            }
+        } catch (\Throwable $ex) {
+            error_log("Exception caught in SendMail(): " . $ex->getMessage());
+        }
     }
 
     function trimSpaces($str)
@@ -1714,5 +1755,6 @@ if ($namesArray === null) {
     {
         CMailfile::SmtpClient($frm, $upload);
     }
+
 
 }

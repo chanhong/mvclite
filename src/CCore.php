@@ -41,6 +41,7 @@ class CCore
     public static $_action;
     public static $_profile;
     public static $_usrInfo;
+    public static $_eflag;
     public static $loginUrl = '?login'; // Where to direct users to login
     static $LoggedIn;
 
